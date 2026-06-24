@@ -4,7 +4,7 @@ A Social Media Marketing panel for Indian resellers to buy followers, likes, vie
 
 ## Run & Operate
 
-- `PORT=5000 pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `PORT=8080 pnpm --filter @workspace/api-server run dev` — run the API server (port 8080, must match artifact.toml)
 - `PORT=25104 BASE_PATH=/ pnpm --filter @workspace/king-smm run dev` — run the frontend (port 25104)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
