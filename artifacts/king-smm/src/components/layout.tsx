@@ -1,9 +1,11 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
-import { Home, List, PlusCircle, History, Wallet, User, LogOut, Menu } from "lucide-react";
+import { Home, List, PlusCircle, History, Wallet, User, LogOut, Menu, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+
+const ADMIN_EMAIL = "sahnaj791@gmail.com";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
@@ -28,6 +30,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return <div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>;
   }
 
+  const isAdmin = user?.email === ADMIN_EMAIL;
+
   const NavLinks = () => (
     <>
       {NAV_ITEMS.map((item) => {
@@ -45,6 +49,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </Link>
         );
       })}
+      {isAdmin && (
+        <Link href="/admin">
+          <div
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
+              location === "/admin" ? "bg-primary/20 text-primary font-medium" : "text-amber-400 hover:bg-amber-400/10"
+            }`}
+          >
+            <Shield className="w-5 h-5" />
+            <span>Admin Panel</span>
+          </div>
+        </Link>
+      )}
     </>
   );
 
@@ -76,9 +92,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div className="p-4 border-t border-border">
                 <div className="flex items-center gap-3 mb-4 px-2 text-sm">
                   <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center font-bold text-primary">
-                    {user?.username?.[0]?.toUpperCase() || "U"}
+                    {(user?.firstName || user?.email || "U")[0]?.toUpperCase()}
                   </div>
-                  <span className="truncate">{user?.username}</span>
+                  <span className="truncate">{user?.firstName || user?.email}</span>
                 </div>
                 <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={logout}>
                   <LogOut className="w-4 h-4 mr-2" /> Logout
@@ -103,10 +119,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-t border-border">
           <div className="flex items-center gap-3 mb-4 px-2">
             <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center font-bold text-primary border border-primary/30">
-              {user?.username?.[0]?.toUpperCase() || "U"}
+              {(user?.firstName || user?.email || "U")[0]?.toUpperCase()}
             </div>
             <div className="overflow-hidden flex-1">
-              <p className="text-sm font-medium truncate">{user?.username}</p>
+              <p className="text-sm font-medium truncate">{user?.firstName || user?.email}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
             </div>
           </div>

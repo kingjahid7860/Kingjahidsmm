@@ -159,6 +159,233 @@ export const ListTopupsResponse = zod.array(ListTopupsResponseItem)
 
 
 /**
+ * @summary Get admin dashboard statistics
+ */
+export const GetAdminStatsResponse = zod.object({
+  "totalUsers": zod.number(),
+  "totalBalance": zod.number(),
+  "totalOrders": zod.number(),
+  "pendingTopups": zod.number()
+})
+
+
+/**
+ * @summary List all users with balances
+ */
+export const ListAdminUsersResponseItem = zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullish(),
+  "firstName": zod.string().nullish(),
+  "lastName": zod.string().nullish(),
+  "profileImageUrl": zod.string().nullish(),
+  "balance": zod.number(),
+  "totalOrders": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+export const ListAdminUsersResponse = zod.array(ListAdminUsersResponseItem)
+
+
+/**
+ * @summary Manually set a user's wallet balance
+ */
+export const UpdateUserBalanceParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateUserBalanceBody = zod.object({
+  "balance": zod.number()
+})
+
+export const UpdateUserBalanceResponse = zod.object({
+  "balance": zod.number(),
+  "totalSpent": zod.number(),
+  "totalAdded": zod.number()
+})
+
+
+/**
+ * @summary List all orders across all users (paginated)
+ */
+export const ListAdminOrdersQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListAdminOrdersResponse = zod.object({
+  "orders": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userEmail": zod.string().nullish(),
+  "serviceId": zod.number(),
+  "serviceName": zod.string(),
+  "platform": zod.string(),
+  "link": zod.string(),
+  "quantity": zod.number(),
+  "charge": zod.number(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+/**
+ * @summary Update order status
+ */
+export const UpdateOrderStatusParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateOrderStatusBody = zod.object({
+  "status": zod.string()
+})
+
+export const UpdateOrderStatusResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userEmail": zod.string().nullish(),
+  "serviceId": zod.number(),
+  "serviceName": zod.string(),
+  "platform": zod.string(),
+  "link": zod.string(),
+  "quantity": zod.number(),
+  "charge": zod.number(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List all top-up requests (paginated)
+ */
+export const ListAdminTopupsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListAdminTopupsResponse = zod.object({
+  "topups": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userEmail": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentMethod": zod.string(),
+  "transactionId": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "totalPages": zod.number()
+})
+
+
+/**
+ * @summary Approve or reject a top-up request
+ */
+export const UpdateTopupStatusParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateTopupStatusBody = zod.object({
+  "status": zod.string()
+})
+
+export const UpdateTopupStatusResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "userEmail": zod.string().nullish(),
+  "amount": zod.number(),
+  "paymentMethod": zod.string(),
+  "transactionId": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get payment settings (UPI ID, QR URL)
+ */
+export const GetPaymentSettingsResponse = zod.object({
+  "upiId": zod.string(),
+  "qrUrl": zod.string()
+})
+
+
+/**
+ * @summary Update payment settings
+ */
+export const UpdatePaymentSettingsBody = zod.object({
+  "upiId": zod.string(),
+  "qrUrl": zod.string()
+})
+
+export const UpdatePaymentSettingsResponse = zod.object({
+  "upiId": zod.string(),
+  "qrUrl": zod.string()
+})
+
+
+/**
+ * @summary Add a new SMM service
+ */
+export const CreateServiceBody = zod.object({
+  "name": zod.string(),
+  "category": zod.string(),
+  "platform": zod.string(),
+  "description": zod.string(),
+  "pricePerThousand": zod.number(),
+  "minQuantity": zod.number(),
+  "maxQuantity": zod.number()
+})
+
+
+/**
+ * @summary Update an SMM service
+ */
+export const UpdateServiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateServiceBody = zod.object({
+  "name": zod.string(),
+  "category": zod.string(),
+  "platform": zod.string(),
+  "description": zod.string(),
+  "pricePerThousand": zod.number(),
+  "minQuantity": zod.number(),
+  "maxQuantity": zod.number()
+})
+
+export const UpdateServiceResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "description": zod.string().optional(),
+  "pricePerThousand": zod.number(),
+  "minQuantity": zod.number(),
+  "maxQuantity": zod.number(),
+  "platform": zod.string()
+})
+
+
+/**
+ * @summary Delete (deactivate) a service
+ */
+export const DeleteServiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteServiceResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Get dashboard summary statistics
  */
 export const GetDashboardStatsResponse = zod.object({

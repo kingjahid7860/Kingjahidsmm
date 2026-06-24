@@ -82,6 +82,92 @@ export interface DashboardStats {
   recentOrders: Order[];
 }
 
+export interface AdminStats {
+  totalUsers: number;
+  totalBalance: number;
+  totalOrders: number;
+  pendingTopups: number;
+}
+
+export interface AdminUser {
+  id: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
+  /** @nullable */
+  profileImageUrl?: string | null;
+  balance: number;
+  totalOrders: number;
+  createdAt: string;
+}
+
+export interface AdminOrder {
+  id: number;
+  userId: string;
+  /** @nullable */
+  userEmail?: string | null;
+  serviceId: number;
+  serviceName: string;
+  platform: string;
+  link: string;
+  quantity: number;
+  charge: number;
+  status: string;
+  createdAt: string;
+}
+
+export interface AdminOrdersPage {
+  orders: AdminOrder[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface AdminTopup {
+  id: number;
+  userId: string;
+  /** @nullable */
+  userEmail?: string | null;
+  amount: number;
+  paymentMethod: string;
+  transactionId: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface AdminTopupsPage {
+  topups: AdminTopup[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface BalanceAdjustInput {
+  balance: number;
+}
+
+export interface TopupStatusInput {
+  status: string;
+}
+
+export interface PaymentSettings {
+  upiId: string;
+  qrUrl: string;
+}
+
+export interface ServiceInput {
+  name: string;
+  category: string;
+  platform: string;
+  description: string;
+  pricePerThousand: number;
+  minQuantity: number;
+  maxQuantity: number;
+}
+
 export type ListServicesParams = {
 category?: string;
 };
@@ -91,5 +177,21 @@ status?: string;
 search?: string;
 page?: number;
 limit?: number;
+};
+
+export type ListAdminOrdersParams = {
+page?: number;
+limit?: number;
+status?: string;
+};
+
+export type ListAdminTopupsParams = {
+page?: number;
+limit?: number;
+status?: string;
+};
+
+export type DeleteService200 = {
+  success: boolean;
 };
 

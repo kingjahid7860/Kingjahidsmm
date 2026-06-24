@@ -11,6 +11,7 @@ import NewOrder from "./pages/new-order";
 import Orders from "./pages/orders";
 import Wallet from "./pages/wallet";
 import Profile from "./pages/profile";
+import Admin from "./pages/admin";
 import Layout from "./components/layout";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/profile">
         <Layout><Profile /></Layout>
       </Route>
+      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );

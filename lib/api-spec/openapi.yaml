@@ -19,6 +19,8 @@ tags:
     description: Wallet and balance
   - name: dashboard
     description: Dashboard statistics
+  - name: admin
+    description: Admin-only operations
 paths:
   /healthz:
     get:
@@ -205,6 +207,279 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/TopupRequest"
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get admin dashboard statistics
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "403":
+          description: Forbidden
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List all users with balances
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+        "403":
+          description: Forbidden
+
+  /admin/users/{id}/balance:
+    patch:
+      operationId: updateUserBalance
+      tags: [admin]
+      summary: Manually set a user's wallet balance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BalanceAdjustInput"
+      responses:
+        "200":
+          description: Balance updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+        "403":
+          description: Forbidden
+
+  /admin/orders:
+    get:
+      operationId: listAdminOrders
+      tags: [admin]
+      summary: List all orders across all users (paginated)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Paginated all orders
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOrdersPage"
+        "403":
+          description: Forbidden
+
+  /admin/orders/{id}/status:
+    patch:
+      operationId: updateOrderStatus
+      tags: [admin]
+      summary: Update order status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopupStatusInput"
+      responses:
+        "200":
+          description: Order updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOrder"
+        "403":
+          description: Forbidden
+
+  /admin/topups:
+    get:
+      operationId: listAdminTopups
+      tags: [admin]
+      summary: List all top-up requests (paginated)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Paginated topup requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTopupsPage"
+        "403":
+          description: Forbidden
+
+  /admin/topups/{id}:
+    patch:
+      operationId: updateTopupStatus
+      tags: [admin]
+      summary: Approve or reject a top-up request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopupStatusInput"
+      responses:
+        "200":
+          description: Topup status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTopup"
+        "403":
+          description: Forbidden
+
+  /admin/settings:
+    get:
+      operationId: getPaymentSettings
+      tags: [admin]
+      summary: Get payment settings (UPI ID, QR URL)
+      responses:
+        "200":
+          description: Payment settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSettings"
+    put:
+      operationId: updatePaymentSettings
+      tags: [admin]
+      summary: Update payment settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentSettings"
+      responses:
+        "200":
+          description: Settings saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSettings"
+        "403":
+          description: Forbidden
+
+  /admin/services:
+    post:
+      operationId: createService
+      tags: [admin]
+      summary: Add a new SMM service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceInput"
+      responses:
+        "201":
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "403":
+          description: Forbidden
+
+  /admin/services/{id}:
+    patch:
+      operationId: updateService
+      tags: [admin]
+      summary: Update an SMM service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceInput"
+      responses:
+        "200":
+          description: Service updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "403":
+          description: Forbidden
+    delete:
+      operationId: deleteService
+      tags: [admin]
+      summary: Delete (deactivate) a service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Service deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required:
+                  - success
+        "403":
+          description: Forbidden
 
   /dashboard/stats:
     get:
@@ -432,3 +707,204 @@ components:
         - pendingOrders
         - totalSpent
         - recentOrders
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        totalBalance:
+          type: number
+        totalOrders:
+          type: integer
+        pendingTopups:
+          type: integer
+      required:
+        - totalUsers
+        - totalBalance
+        - totalOrders
+        - pendingTopups
+
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: ["string", "null"]
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        profileImageUrl:
+          type: ["string", "null"]
+        balance:
+          type: number
+        totalOrders:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - balance
+        - totalOrders
+        - createdAt
+
+    AdminOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        userEmail:
+          type: ["string", "null"]
+        serviceId:
+          type: integer
+        serviceName:
+          type: string
+        platform:
+          type: string
+        link:
+          type: string
+        quantity:
+          type: integer
+        charge:
+          type: number
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - serviceId
+        - serviceName
+        - platform
+        - link
+        - quantity
+        - charge
+        - status
+        - createdAt
+
+    AdminOrdersPage:
+      type: object
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminOrder"
+        total:
+          type: integer
+        page:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - orders
+        - total
+        - page
+        - totalPages
+
+    AdminTopup:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        userEmail:
+          type: ["string", "null"]
+        amount:
+          type: number
+        paymentMethod:
+          type: string
+        transactionId:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - amount
+        - paymentMethod
+        - transactionId
+        - status
+        - createdAt
+
+    AdminTopupsPage:
+      type: object
+      properties:
+        topups:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminTopup"
+        total:
+          type: integer
+        page:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - topups
+        - total
+        - page
+        - totalPages
+
+    BalanceAdjustInput:
+      type: object
+      properties:
+        balance:
+          type: number
+      required:
+        - balance
+
+    TopupStatusInput:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    PaymentSettings:
+      type: object
+      properties:
+        upiId:
+          type: string
+        qrUrl:
+          type: string
+      required:
+        - upiId
+        - qrUrl
+
+    ServiceInput:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        platform:
+          type: string
+        description:
+          type: string
+        pricePerThousand:
+          type: number
+        minQuantity:
+          type: integer
+        maxQuantity:
+          type: integer
+      required:
+        - name
+        - category
+        - platform
+        - description
+        - pricePerThousand
+        - minQuantity
+        - maxQuantity

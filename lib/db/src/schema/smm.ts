@@ -59,3 +59,9 @@ export const topupRequestsTable = pgTable("topup_requests", {
 export type TopupRequest = typeof topupRequestsTable.$inferSelect;
 export const insertTopupSchema = createInsertSchema(topupRequestsTable).omit({ id: true, createdAt: true });
 export type InsertTopup = z.infer<typeof insertTopupSchema>;
+
+export const settingsTable = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

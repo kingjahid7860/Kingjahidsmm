@@ -23,10 +23,10 @@ export default function Profile() {
         <CardContent className="space-y-6">
           <div className="flex items-center gap-6 pb-6 border-b border-white/5">
             <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-5xl font-bold text-white shadow-[0_0_20px_rgba(236,72,153,0.3)]">
-              {user?.username?.[0]?.toUpperCase() || "U"}
+              {(user?.firstName || user?.email || "U")[0]?.toUpperCase()}
             </div>
             <div>
-              <h2 className="text-2xl font-bold">{user?.username}</h2>
+              <h2 className="text-2xl font-bold">{[user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email}</h2>
               <p className="text-muted-foreground flex items-center mt-1">
                 <Mail className="w-4 h-4 mr-2" />
                 {user?.email || "No email provided"}
