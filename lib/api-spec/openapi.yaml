@@ -1,22 +1,30 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: King SMM Panel API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: User authentication
+  - name: services
+    description: SMM services catalog
+  - name: orders
+    description: Order management
+  - name: wallet
+    description: Wallet and balance
+  - name: dashboard
+    description: Dashboard statistics
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +32,208 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  /services:
+    get:
+      operationId: listServices
+      tags: [services]
+      summary: List all SMM services
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+
+  /services/{id}:
+    get:
+      operationId: getService
+      tags: [services]
+      summary: Get a service by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Service details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "404":
+          description: Not found
+
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      summary: List user orders with optional filter
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Paginated orders
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrdersPage"
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Place a new order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Order placed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          description: Insufficient balance or invalid input
+
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      summary: Get order by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: Not found
+
+  /wallet:
+    get:
+      operationId: getWallet
+      tags: [wallet]
+      summary: Get user wallet/balance
+      responses:
+        "200":
+          description: Wallet info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /wallet/topup:
+    post:
+      operationId: topupWallet
+      tags: [wallet]
+      summary: Request a wallet top-up
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopupInput"
+      responses:
+        "201":
+          description: Top-up request submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopupRequest"
+
+  /wallet/topups:
+    get:
+      operationId: listTopups
+      tags: [wallet]
+      summary: List user top-up requests
+      responses:
+        "200":
+          description: List of top-up requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TopupRequest"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard summary statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /services/categories:
+    get:
+      operationId: listCategories
+      tags: [services]
+      summary: List all service categories
+      responses:
+        "200":
+          description: Category list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +244,191 @@ components:
       required:
         - status
 
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - username
+        - email
+        - createdAt
+
+    Service:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        pricePerThousand:
+          type: number
+        minQuantity:
+          type: integer
+        maxQuantity:
+          type: integer
+        platform:
+          type: string
+      required:
+        - id
+        - name
+        - category
+        - pricePerThousand
+        - minQuantity
+        - maxQuantity
+        - platform
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        serviceId:
+          type: integer
+        serviceName:
+          type: string
+        platform:
+          type: string
+        link:
+          type: string
+        quantity:
+          type: integer
+        charge:
+          type: number
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - serviceId
+        - serviceName
+        - platform
+        - link
+        - quantity
+        - charge
+        - status
+        - createdAt
+
+    OrdersPage:
+      type: object
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+        total:
+          type: integer
+        page:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - orders
+        - total
+        - page
+        - totalPages
+
+    OrderInput:
+      type: object
+      properties:
+        serviceId:
+          type: integer
+        link:
+          type: string
+        quantity:
+          type: integer
+      required:
+        - serviceId
+        - link
+        - quantity
+
+    Wallet:
+      type: object
+      properties:
+        balance:
+          type: number
+        totalSpent:
+          type: number
+        totalAdded:
+          type: number
+      required:
+        - balance
+        - totalSpent
+        - totalAdded
+
+    TopupInput:
+      type: object
+      properties:
+        amount:
+          type: number
+        paymentMethod:
+          type: string
+        transactionId:
+          type: string
+      required:
+        - amount
+        - paymentMethod
+        - transactionId
+
+    TopupRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        amount:
+          type: number
+        paymentMethod:
+          type: string
+        transactionId:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - amount
+        - paymentMethod
+        - transactionId
+        - status
+        - createdAt
+
+    DashboardStats:
+      type: object
+      properties:
+        balance:
+          type: number
+        totalOrders:
+          type: integer
+        completedOrders:
+          type: integer
+        pendingOrders:
+          type: integer
+        totalSpent:
+          type: number
+        recentOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+      required:
+        - balance
+        - totalOrders
+        - completedOrders
+        - pendingOrders
+        - totalSpent
+        - recentOrders

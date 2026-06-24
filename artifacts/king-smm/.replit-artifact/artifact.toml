@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "King SMM"
+version = "1.0.0"
+id = "artifacts/king-smm"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25104
+
+[services.development]
+run = "pnpm --filter @workspace/king-smm run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/king-smm", "run", "build" ]
+publicDir = "artifacts/king-smm/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25104"
+BASE_PATH = "/"
