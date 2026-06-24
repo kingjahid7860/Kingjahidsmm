@@ -94,7 +94,7 @@ export default function NewOrder() {
                       <SelectContent className="max-h-[300px]">
                         {services?.map(s => (
                           <SelectItem key={s.id} value={s.id.toString()}>
-                            {s.id} - {s.name} (${s.pricePerThousand}/1k)
+                            {s.id} - {s.name} (₹{s.pricePerThousand}/1k)
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -146,7 +146,7 @@ export default function NewOrder() {
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Total Charge</p>
                   <p className="text-3xl font-bold text-primary tracking-tight">
-                    ${charge.toFixed(4)}
+                    ₹{charge.toFixed(2)}
                   </p>
                 </div>
                 <Button 

@@ -83,7 +83,7 @@ export default function Services() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-mono text-primary font-bold">
-                      ${service.pricePerThousand.toFixed(2)}
+                      ₹{service.pricePerThousand.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground text-sm">
                       {service.minQuantity} / {service.maxQuantity}

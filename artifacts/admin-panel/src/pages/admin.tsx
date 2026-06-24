@@ -90,7 +90,7 @@ function DashboardTab() {
   const { data: stats, isLoading } = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey() } });
   const cards = [
     { title: "Total Users", value: stats?.totalUsers ?? 0, icon: Users, color: "text-primary" },
-    { title: "Total Balance", value: `₹${(stats?.totalBalance ?? 0).toFixed(2)}`, icon: Wallet, color: "text-green-400" },
+    { title: "Total Balance", value: `\u20B9${(stats?.totalBalance ?? 0).toFixed(2)}`, icon: Wallet, color: "text-green-400" },
     { title: "Total Orders", value: stats?.totalOrders ?? 0, icon: ShoppingCart, color: "text-blue-400" },
     { title: "Pending Top-ups", value: stats?.pendingTopups ?? 0, icon: Clock, color: "text-amber-400" },
   ];
@@ -107,7 +107,7 @@ function DashboardTab() {
               <CardTitle className="text-sm font-medium text-muted-foreground">{c.title}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-3xl font-bold ${c.color}`}>{isLoading ? "—" : c.value}</div>
+              <div className={`text-3xl font-bold ${c.color}`}>{isLoading ? "\u2014" : c.value}</div>
             </CardContent>
           </Card>
         ))}
@@ -160,8 +160,8 @@ function UsersTab() {
                 <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No users yet.</TableCell></TableRow>
               ) : users?.map((u) => (
                 <TableRow key={u.id} className="border-border">
-                  <TableCell className="text-sm">{u.email ?? "—"}</TableCell>
-                  <TableCell className="text-sm">{[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}</TableCell>
+                  <TableCell className="text-sm">{u.email ?? "\u2014"}</TableCell>
+                  <TableCell className="text-sm">{[u.firstName, u.lastName].filter(Boolean).join(" ") || "\u2014"}</TableCell>
                   <TableCell>
                     {editId === u.id ? (
                       <div className="flex items-center gap-1">
@@ -179,7 +179,7 @@ function UsersTab() {
                         </Button>
                       </div>
                     ) : (
-                      <span className="font-medium text-green-400">₹{u.balance.toFixed(2)}</span>
+                      <span className="font-medium text-green-400">\u20B9{u.balance.toFixed(2)}</span>
                     )}
                   </TableCell>
                   <TableCell>{u.totalOrders}</TableCell>
@@ -264,7 +264,7 @@ function OrdersTab() {
                   <TableCell className="text-sm max-w-[120px] truncate">{o.userEmail ?? o.userId.slice(0, 8)}</TableCell>
                   <TableCell className="text-sm max-w-[140px] truncate">{o.serviceName}</TableCell>
                   <TableCell>{o.quantity.toLocaleString()}</TableCell>
-                  <TableCell className="text-primary font-medium">₹{o.charge.toFixed(2)}</TableCell>
+                  <TableCell className="text-primary font-medium">\u20B9{o.charge.toFixed(2)}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{formatDate(o.createdAt)}</TableCell>
                   <TableCell><StatusBadge status={o.status} /></TableCell>
                   <TableCell className="text-right">
@@ -307,7 +307,7 @@ function TopupsTab() {
     try {
       await updateStatus({ id, data: { status } });
       await qc.invalidateQueries({ queryKey: getListAdminTopupsQueryKey() });
-      toast({ title: status === "Approved" ? "Top-up approved — balance added" : "Top-up rejected" });
+      toast({ title: status === "Approved" ? "Top-up approved \u2014 balance added" : "Top-up rejected" });
     } catch {
       toast({ title: "Failed to update topup", variant: "destructive" });
     }
@@ -353,7 +353,7 @@ function TopupsTab() {
                 <TableRow key={t.id} className="border-border">
                   <TableCell className="font-mono text-muted-foreground">#{t.id}</TableCell>
                   <TableCell className="text-sm max-w-[120px] truncate">{t.userEmail ?? t.userId.slice(0, 8)}</TableCell>
-                  <TableCell className="font-bold text-green-400">₹{t.amount.toFixed(2)}</TableCell>
+                  <TableCell className="font-bold text-green-400">\u20B9{t.amount.toFixed(2)}</TableCell>
                   <TableCell className="text-sm">{t.paymentMethod}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground max-w-[120px] truncate">{t.transactionId}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{formatDate(t.createdAt)}</TableCell>
@@ -371,7 +371,7 @@ function TopupsTab() {
                         </Button>
                       </div>
                     ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
+                      <span className="text-muted-foreground text-xs">\u2014</span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -468,7 +468,7 @@ export default function Admin() {
         <Card className="bg-card/50 border-white/5 p-8 text-center space-y-3">
           <Shield className="w-12 h-12 text-red-400 mx-auto" />
           <p className="text-lg font-semibold">Access Denied</p>
-          <p className="text-muted-foreground text-sm">You don't have admin privileges.</p>
+          <p className="text-muted-foreground text-sm">You don&apos;t have admin privileges.</p>
         </Card>
       </div>
     );

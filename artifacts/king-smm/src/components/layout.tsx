@@ -1,11 +1,9 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
-import { Home, List, PlusCircle, History, Wallet, User, LogOut, Menu, Shield } from "lucide-react";
+import { Home, List, PlusCircle, History, Wallet, User, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-
-const ADMIN_EMAIL = "sahnaj791@gmail.com";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
@@ -30,8 +28,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return <div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>;
   }
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
-
   const NavLinks = () => (
     <>
       {NAV_ITEMS.map((item) => {
@@ -49,18 +45,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </Link>
         );
       })}
-      {isAdmin && (
-        <Link href="/admin">
-          <div
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
-              location === "/admin" ? "bg-primary/20 text-primary font-medium" : "text-amber-400 hover:bg-amber-400/10"
-            }`}
-          >
-            <Shield className="w-5 h-5" />
-            <span>Admin Panel</span>
-          </div>
-        </Link>
-      )}
     </>
   );
 

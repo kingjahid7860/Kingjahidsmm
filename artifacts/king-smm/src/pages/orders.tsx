@@ -80,7 +80,7 @@ export default function Orders() {
                     <TableCell className="max-w-[200px] truncate">
                       <a href={order.link} target="_blank" rel="noreferrer" className="text-primary hover:underline">{order.link}</a>
                     </TableCell>
-                    <TableCell className="text-right font-mono font-medium">${order.charge.toFixed(4)}</TableCell>
+                    <TableCell className="text-right font-mono font-medium">₹{order.charge.toFixed(2)}</TableCell>
                     <TableCell>{order.quantity}</TableCell>
                     <TableCell className="max-w-[200px] truncate text-sm">{order.serviceName}</TableCell>
                     <TableCell>

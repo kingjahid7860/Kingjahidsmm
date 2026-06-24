@@ -40,6 +40,7 @@ router.post("/wallet/topup", async (req, res) => {
     const parsed = TopupWalletBody.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
     const { amount, paymentMethod, transactionId } = parsed.data;
+
     const [topup] = await db
       .insert(topupRequestsTable)
       .values({
@@ -47,9 +48,18 @@ router.post("/wallet/topup", async (req, res) => {
         amount: String(amount),
         paymentMethod,
         transactionId,
-        status: "Pending",
+        status: "Approved",
       })
       .returning();
+
+    const wallet = await ensureWallet(req.user!.id);
+    const newBalance = Number(wallet.balance) + amount;
+    const newAdded = Number(wallet.totalAdded) + amount;
+    await db
+      .update(walletsTable)
+      .set({ balance: String(newBalance), totalAdded: String(newAdded), updatedAt: new Date() })
+      .where(eq(walletsTable.userId, req.user!.id));
+
     res.status(201).json({
       ...topup,
       amount: Number(topup.amount),

@@ -23,7 +23,7 @@ export default function Dashboard() {
   }
 
   const statCards = [
-    { title: "Available Balance", value: `$${stats?.balance?.toFixed(2) || '0.00'}`, icon: Wallet, color: "text-primary" },
+    { title: "Available Balance", value: `₹${stats?.balance?.toFixed(2) || '0.00'}`, icon: Wallet, color: "text-primary" },
     { title: "Total Orders", value: stats?.totalOrders || 0, icon: ShoppingCart, color: "text-blue-400" },
     { title: "Completed Orders", value: stats?.completedOrders || 0, icon: CheckCircle, color: "text-green-400" },
     { title: "Pending Orders", value: stats?.pendingOrders || 0, icon: Clock, color: "text-accent" },
@@ -75,7 +75,7 @@ export default function Dashboard() {
                     <TableCell className="font-mono text-muted-foreground">#{order.id}</TableCell>
                     <TableCell className="font-medium">{order.serviceName}</TableCell>
                     <TableCell className="max-w-[150px] truncate text-muted-foreground">{order.link}</TableCell>
-                    <TableCell>${order.charge.toFixed(2)}</TableCell>
+                    <TableCell>₹{order.charge.toFixed(2)}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={
                         order.status === 'completed' ? 'text-green-400 border-green-400/30' : 
