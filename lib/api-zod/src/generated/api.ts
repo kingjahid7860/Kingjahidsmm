@@ -331,6 +331,48 @@ export const UpdatePaymentSettingsResponse = zod.object({
 
 
 /**
+ * @summary Get external SMM API connection settings
+ */
+export const GetApiSettingsResponse = zod.object({
+  "apiUrl": zod.string(),
+  "apiKey": zod.string(),
+  "isEnabled": zod.boolean()
+})
+
+
+/**
+ * @summary Update external SMM API connection settings
+ */
+export const UpdateApiSettingsBody = zod.object({
+  "apiUrl": zod.string(),
+  "apiKey": zod.string(),
+  "isEnabled": zod.boolean()
+})
+
+export const UpdateApiSettingsResponse = zod.object({
+  "apiUrl": zod.string(),
+  "apiKey": zod.string(),
+  "isEnabled": zod.boolean()
+})
+
+
+/**
+ * @summary List all services (including inactive) for admin
+ */
+export const ListAdminServicesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "description": zod.string().optional(),
+  "pricePerThousand": zod.number(),
+  "minQuantity": zod.number(),
+  "maxQuantity": zod.number(),
+  "platform": zod.string()
+})
+export const ListAdminServicesResponse = zod.array(ListAdminServicesResponseItem)
+
+
+/**
  * @summary Add a new SMM service
  */
 export const CreateServiceBody = zod.object({

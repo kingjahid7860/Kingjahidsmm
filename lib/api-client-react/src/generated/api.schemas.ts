@@ -158,6 +158,12 @@ export interface PaymentSettings {
   qrUrl: string;
 }
 
+export interface ApiSettings {
+  apiUrl: string;
+  apiKey: string;
+  isEnabled: boolean;
+}
+
 export interface ServiceInput {
   name: string;
   category: string;

@@ -409,7 +409,52 @@ paths:
         "403":
           description: Forbidden
 
+  /admin/api-settings:
+    get:
+      operationId: getApiSettings
+      tags: [admin]
+      summary: Get external SMM API connection settings
+      responses:
+        "200":
+          description: API settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSettings"
+    put:
+      operationId: updateApiSettings
+      tags: [admin]
+      summary: Update external SMM API connection settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiSettings"
+      responses:
+        "200":
+          description: API settings saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSettings"
+        "403":
+          description: Forbidden
+
   /admin/services:
+    get:
+      operationId: listAdminServices
+      tags: [admin]
+      summary: List all services (including inactive) for admin
+      responses:
+        "200":
+          description: List of all services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
     post:
       operationId: createService
       tags: [admin]
@@ -882,6 +927,20 @@ components:
       required:
         - upiId
         - qrUrl
+
+    ApiSettings:
+      type: object
+      properties:
+        apiUrl:
+          type: string
+        apiKey:
+          type: string
+        isEnabled:
+          type: boolean
+      required:
+        - apiUrl
+        - apiKey
+        - isEnabled
 
     ServiceInput:
       type: object

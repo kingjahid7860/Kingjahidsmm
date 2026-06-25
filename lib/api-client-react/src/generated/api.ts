@@ -26,6 +26,7 @@ import type {
   AdminTopup,
   AdminTopupsPage,
   AdminUser,
+  ApiSettings,
   BalanceAdjustInput,
   DashboardStats,
   DeleteService200,
@@ -1516,6 +1517,231 @@ export const useUpdatePaymentSettings = <TError = ErrorType<void>,
       > => {
       return useMutation(getUpdatePaymentSettingsMutationOptions(options));
     }
+
+export const getGetApiSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/api-settings`
+}
+
+/**
+ * @summary Get external SMM API connection settings
+ */
+export const getApiSettings = async ( options?: RequestInit): Promise<ApiSettings> => {
+
+  return customFetch<ApiSettings>(getGetApiSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetApiSettingsQueryKey = () => {
+    return [
+    `/api/admin/api-settings`
+    ] as const;
+    }
+
+
+export const getGetApiSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getApiSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApiSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApiSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiSettings>>> = ({ signal }) => getApiSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetApiSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiSettings>>>
+export type GetApiSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get external SMM API connection settings
+ */
+
+export function useGetApiSettings<TData = Awaited<ReturnType<typeof getApiSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getApiSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetApiSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateApiSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/api-settings`
+}
+
+/**
+ * @summary Update external SMM API connection settings
+ */
+export const updateApiSettings = async (apiSettings: ApiSettings, options?: RequestInit): Promise<ApiSettings> => {
+
+  return customFetch<ApiSettings>(getUpdateApiSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      apiSettings,)
+  }
+);}
+
+
+
+
+export const getUpdateApiSettingsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateApiSettings>>, TError,{data: BodyType<ApiSettings>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateApiSettings>>, TError,{data: BodyType<ApiSettings>}, TContext> => {
+
+const mutationKey = ['updateApiSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateApiSettings>>, {data: BodyType<ApiSettings>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateApiSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateApiSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateApiSettings>>>
+    export type UpdateApiSettingsMutationBody = BodyType<ApiSettings>
+    export type UpdateApiSettingsMutationError = ErrorType<void>
+
+    /**
+ * @summary Update external SMM API connection settings
+ */
+export const useUpdateApiSettings = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateApiSettings>>, TError,{data: BodyType<ApiSettings>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateApiSettings>>,
+        TError,
+        {data: BodyType<ApiSettings>},
+        TContext
+      > => {
+      return useMutation(getUpdateApiSettingsMutationOptions(options));
+    }
+
+export const getListAdminServicesUrl = () => {
+
+
+
+
+  return `/api/admin/services`
+}
+
+/**
+ * @summary List all services (including inactive) for admin
+ */
+export const listAdminServices = async ( options?: RequestInit): Promise<Service[]> => {
+
+  return customFetch<Service[]>(getListAdminServicesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminServicesQueryKey = () => {
+    return [
+    `/api/admin/services`
+    ] as const;
+    }
+
+
+export const getListAdminServicesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminServices>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminServices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminServicesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminServices>>> = ({ signal }) => listAdminServices({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminServices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminServicesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminServices>>>
+export type ListAdminServicesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all services (including inactive) for admin
+ */
+
+export function useListAdminServices<TData = Awaited<ReturnType<typeof listAdminServices>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminServices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminServicesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getCreateServiceUrl = () => {
 

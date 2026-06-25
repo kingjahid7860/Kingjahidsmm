@@ -12,6 +12,7 @@ export * from './adminStats';
 export * from './adminTopup';
 export * from './adminTopupsPage';
 export * from './adminUser';
+export * from './apiSettings';
 export * from './balanceAdjustInput';
 export * from './dashboardStats';
 export * from './deleteService200';

@@ -10,11 +10,19 @@ import {
   useUpdateOrderStatus,
   useUpdateTopupStatus,
   useUpdatePaymentSettings,
+  useListAdminServices,
+  useCreateService,
+  useUpdateService,
+  useDeleteService,
+  useGetApiSettings,
+  useUpdateApiSettings,
   getGetAdminStatsQueryKey,
   getListAdminUsersQueryKey,
   getListAdminOrdersQueryKey,
   getListAdminTopupsQueryKey,
   getGetPaymentSettingsQueryKey,
+  getListAdminServicesQueryKey,
+  getGetApiSettingsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,12 +44,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Users, ShoppingCart, Wallet, Clock, Settings, ChevronLeft, ChevronRight, Shield, Edit2, Check, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Users, ShoppingCart, Wallet, Clock, Settings, ChevronLeft, ChevronRight, Shield, Edit2, Check, X, Plus, Trash2, Link, Key, ToggleLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const ADMIN_EMAIL = "sahnaj791@gmail.com";
+const ADMIN_EMAIL = "kingjahid0786@gmail.com";
 
-type Tab = "dashboard" | "users" | "orders" | "topups" | "settings";
+type Tab = "dashboard" | "users" | "orders" | "topups" | "services" | "api" | "settings";
 
 function formatDate(d: string | Date) {
   return new Date(d).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
@@ -307,7 +316,8 @@ function TopupsTab() {
     try {
       await updateStatus({ id, data: { status } });
       await qc.invalidateQueries({ queryKey: getListAdminTopupsQueryKey() });
-      toast({ title: status === "Approved" ? "Top-up approved \u2014 balance added" : "Top-up rejected" });
+      await qc.invalidateQueries({ queryKey: getGetAdminStatsQueryKey() });
+      toast({ title: status === "Approved" ? "Top-up approved \u2014 balance added to user wallet" : "Top-up rejected" });
     } catch {
       toast({ title: "Failed to update topup", variant: "destructive" });
     }
@@ -337,7 +347,6 @@ function TopupsTab() {
                 <TableHead>ID</TableHead>
                 <TableHead>User</TableHead>
                 <TableHead>Amount</TableHead>
-                <TableHead>Method</TableHead>
                 <TableHead>Transaction ID</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Status</TableHead>
@@ -346,16 +355,15 @@ function TopupsTab() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
               ) : data?.topups.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No top-up requests found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No top-up requests found.</TableCell></TableRow>
               ) : data?.topups.map((t) => (
                 <TableRow key={t.id} className="border-border">
                   <TableCell className="font-mono text-muted-foreground">#{t.id}</TableCell>
                   <TableCell className="text-sm max-w-[120px] truncate">{t.userEmail ?? t.userId.slice(0, 8)}</TableCell>
                   <TableCell className="font-bold text-green-400">\u20B9{t.amount.toFixed(2)}</TableCell>
-                  <TableCell className="text-sm">{t.paymentMethod}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground max-w-[120px] truncate">{t.transactionId}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground max-w-[140px] truncate">{t.transactionId}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{formatDate(t.createdAt)}</TableCell>
                   <TableCell><StatusBadge status={t.status} /></TableCell>
                   <TableCell className="text-right">
@@ -381,6 +389,297 @@ function TopupsTab() {
         </CardContent>
       </Card>
       <Pagination page={page} totalPages={data?.totalPages ?? 1} onPage={setPage} />
+    </div>
+  );
+}
+
+const PLATFORMS = ["Instagram", "YouTube", "Facebook", "Twitter/X", "TikTok", "Telegram", "Other"];
+
+const emptyService = { name: "", category: "", platform: "Instagram", description: "", pricePerThousand: 0, minQuantity: 100, maxQuantity: 100000 };
+
+function ServicesTab() {
+  const { data: services, isLoading } = useListAdminServices({ query: { queryKey: getListAdminServicesQueryKey() } });
+  const { mutateAsync: createService } = useCreateService();
+  const { mutateAsync: updateService } = useUpdateService();
+  const { mutateAsync: deleteService } = useDeleteService();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState({ ...emptyService });
+
+  function openAdd() { setForm({ ...emptyService }); setShowAdd(true); }
+  function openEdit(s: NonNullable<typeof services>[0]) {
+    setForm({ name: s.name, category: s.category, platform: s.platform, description: s.description, pricePerThousand: s.pricePerThousand, minQuantity: s.minQuantity, maxQuantity: s.maxQuantity });
+    setEditId(s.id);
+  }
+
+  async function handleSave() {
+    const data = { ...form, pricePerThousand: Number(form.pricePerThousand), minQuantity: Number(form.minQuantity), maxQuantity: Number(form.maxQuantity) };
+    if (!data.name || !data.category || !data.platform || !data.description || !data.pricePerThousand) {
+      toast({ title: "Please fill all required fields", variant: "destructive" }); return;
+    }
+    try {
+      if (editId !== null) {
+        await updateService({ id: editId, data });
+        toast({ title: "Service updated" });
+        setEditId(null);
+      } else {
+        await createService({ data });
+        toast({ title: "Service added" });
+        setShowAdd(false);
+      }
+      await qc.invalidateQueries({ queryKey: getListAdminServicesQueryKey() });
+    } catch {
+      toast({ title: "Failed to save service", variant: "destructive" });
+    }
+  }
+
+  async function handleDelete(id: number) {
+    try {
+      await deleteService({ id });
+      await qc.invalidateQueries({ queryKey: getListAdminServicesQueryKey() });
+      toast({ title: "Service deactivated" });
+    } catch {
+      toast({ title: "Failed to deactivate service", variant: "destructive" });
+    }
+  }
+
+  const ServiceForm = () => (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1 col-span-2">
+          <label className="text-xs font-medium text-muted-foreground">Service Name *</label>
+          <Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Instagram Followers" className="bg-background/50" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Platform *</label>
+          <Select value={form.platform} onValueChange={(v) => setForm(f => ({ ...f, platform: v }))}>
+            <SelectTrigger className="bg-background/50"><SelectValue /></SelectTrigger>
+            <SelectContent>{PLATFORMS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Category *</label>
+          <Input value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))} placeholder="e.g. Followers" className="bg-background/50" />
+        </div>
+        <div className="space-y-1 col-span-2">
+          <label className="text-xs font-medium text-muted-foreground">Description *</label>
+          <Input value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Short description" className="bg-background/50" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Price per 1000 (\u20B9) *</label>
+          <Input type="number" value={form.pricePerThousand} onChange={(e) => setForm(f => ({ ...f, pricePerThousand: Number(e.target.value) }))} placeholder="e.g. 50" className="bg-background/50" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Min Quantity</label>
+          <Input type="number" value={form.minQuantity} onChange={(e) => setForm(f => ({ ...f, minQuantity: Number(e.target.value) }))} className="bg-background/50" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Max Quantity</label>
+          <Input type="number" value={form.maxQuantity} onChange={(e) => setForm(f => ({ ...f, maxQuantity: Number(e.target.value) }))} className="bg-background/50" />
+        </div>
+      </div>
+      <Button onClick={handleSave} className="bg-gradient-to-r from-primary to-accent text-white w-full">
+        {editId !== null ? "Save Changes" : "Add Service"}
+      </Button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-2xl font-bold">Services ({services?.length ?? 0})</h2>
+        <Dialog open={showAdd} onOpenChange={setShowAdd}>
+          <DialogTrigger asChild>
+            <Button className="bg-gradient-to-r from-primary to-accent text-white" onClick={openAdd}>
+              <Plus className="w-4 h-4 mr-1" /> Add Service
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-card border-white/10 max-w-md">
+            <DialogHeader><DialogTitle>Add New Service</DialogTitle></DialogHeader>
+            <ServiceForm />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Dialog open={editId !== null} onOpenChange={(open) => { if (!open) setEditId(null); }}>
+        <DialogContent className="bg-card border-white/10 max-w-md">
+          <DialogHeader><DialogTitle>Edit Service</DialogTitle></DialogHeader>
+          <ServiceForm />
+        </DialogContent>
+      </Dialog>
+
+      <Card className="bg-card/50 border-white/5 backdrop-blur">
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-border">
+                <TableHead>Name</TableHead>
+                <TableHead>Platform</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Price/1000</TableHead>
+                <TableHead>Min</TableHead>
+                <TableHead>Max</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              ) : services?.length === 0 ? (
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No services yet. Add one above.</TableCell></TableRow>
+              ) : services?.map((s) => (
+                <TableRow key={s.id} className="border-border">
+                  <TableCell className="font-medium max-w-[160px] truncate">{s.name}</TableCell>
+                  <TableCell className="text-sm">{s.platform}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{s.category}</TableCell>
+                  <TableCell className="text-primary font-medium">\u20B9{Number(s.pricePerThousand).toFixed(2)}</TableCell>
+                  <TableCell className="text-sm">{s.minQuantity.toLocaleString()}</TableCell>
+                  <TableCell className="text-sm">{s.maxQuantity.toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={s.isActive ? "text-green-400 border-green-400/30 bg-green-400/10" : "text-muted-foreground"}>
+                      {s.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex gap-1 justify-end">
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(s)}>
+                        <Edit2 className="w-3 h-3 mr-1" /> Edit
+                      </Button>
+                      {s.isActive && (
+                        <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={() => handleDelete(s.id)}>
+                          <Trash2 className="w-3 h-3 mr-1" /> Disable
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ApiTab() {
+  const { data: settings, isLoading } = useGetApiSettings({ query: { queryKey: getGetApiSettingsQueryKey() } });
+  const { mutateAsync: save } = useUpdateApiSettings();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [apiUrl, setApiUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [isEnabled, setIsEnabled] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+
+  React.useEffect(() => {
+    if (settings) {
+      setApiUrl(settings.apiUrl);
+      setApiKey(settings.apiKey);
+      setIsEnabled(settings.isEnabled);
+    }
+  }, [settings]);
+
+  async function handleSave() {
+    try {
+      await save({ data: { apiUrl, apiKey, isEnabled } });
+      await qc.invalidateQueries({ queryKey: getGetApiSettingsQueryKey() });
+      toast({ title: "API settings saved" });
+    } catch {
+      toast({ title: "Failed to save API settings", variant: "destructive" });
+    }
+  }
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      <div>
+        <h2 className="text-2xl font-bold">External SMM API</h2>
+        <p className="text-muted-foreground text-sm mt-1">Connect to any SMM panel API to source services. Supports standard SMM panel API format.</p>
+      </div>
+
+      <Card className="bg-card/50 border-white/5 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Link className="w-4 h-4 text-primary" />
+            API Connection
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-background/40 border border-white/5">
+            <div>
+              <p className="text-sm font-medium">Enable API Integration</p>
+              <p className="text-xs text-muted-foreground">Orders will be forwarded to the connected API</p>
+            </div>
+            <Switch checked={isEnabled} onCheckedChange={setIsEnabled} disabled={isLoading} />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              <Link className="w-3 h-3" /> API URL
+            </label>
+            <Input
+              value={apiUrl}
+              onChange={(e) => setApiUrl(e.target.value)}
+              placeholder="https://yourpanel.com/api/v2"
+              className="bg-background/50"
+              disabled={isLoading}
+            />
+            <p className="text-xs text-muted-foreground">Must support standard SMM panel API v2 format</p>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              <Key className="w-3 h-3" /> API Key
+            </label>
+            <div className="relative">
+              <Input
+                type={showKey ? "text" : "password"}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Your API key from the panel"
+                className="bg-background/50 pr-16"
+                disabled={isLoading}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 text-xs text-muted-foreground"
+                onClick={() => setShowKey((v) => !v)}
+              >
+                {showKey ? "Hide" : "Show"}
+              </Button>
+            </div>
+          </div>
+
+          {apiUrl && (
+            <div className="p-3 rounded-lg bg-background/40 border border-white/5 text-xs space-y-1">
+              <p className="font-medium text-muted-foreground">API Endpoint Preview</p>
+              <p className="font-mono text-primary break-all">{apiUrl}?action=services&key=***</p>
+            </div>
+          )}
+
+          <Button onClick={handleSave} className="bg-gradient-to-r from-primary to-accent text-white w-full" disabled={isLoading}>
+            Save API Settings
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/50 border-white/5 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="text-base text-muted-foreground">How it works</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-2">
+          <p>1. Enter your SMM panel API URL and key above</p>
+          <p>2. Enable the integration toggle</p>
+          <p>3. When customers place orders on your panel, they will be forwarded to this API automatically</p>
+          <p>4. Supported panels: SMMKing, JustAnotherPanel, and any panel with standard v2 API</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -435,6 +734,7 @@ function SettingsTab() {
               className="bg-background/50"
               disabled={isLoading}
             />
+            <p className="text-xs text-muted-foreground">Paste a direct image URL for the QR code that users will scan</p>
           </div>
           {qrUrl && (
             <div className="p-3 rounded-lg bg-background/40 inline-block">
@@ -451,12 +751,15 @@ function SettingsTab() {
 }
 
 export default function Admin() {
-  const { user, isLoading, isAuthenticated, login } = useAuth();
+  const { user, isLoading, isAuthenticated } = useAuth();
   const [tab, setTab] = useState<Tab>("dashboard");
 
   React.useEffect(() => {
-    if (!isLoading && !isAuthenticated) login();
-  }, [isLoading, isAuthenticated, login]);
+    if (!isLoading && !isAuthenticated) {
+      const returnTo = window.location.origin + window.location.pathname;
+      window.location.href = `/api/login?returnTo=${encodeURIComponent(returnTo)}`;
+    }
+  }, [isLoading, isAuthenticated]);
 
   if (isLoading || !isAuthenticated) {
     return <div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>;
@@ -465,10 +768,10 @@ export default function Admin() {
   if (user?.email !== ADMIN_EMAIL) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="bg-card/50 border-white/5 p-8 text-center space-y-3">
+        <Card className="bg-card/50 border-white/5 p-8 text-center space-y-3 max-w-sm">
           <Shield className="w-12 h-12 text-red-400 mx-auto" />
           <p className="text-lg font-semibold">Access Denied</p>
-          <p className="text-muted-foreground text-sm">You don&apos;t have admin privileges.</p>
+          <p className="text-muted-foreground text-sm">This admin panel is restricted. You are logged in as <span className="text-white font-mono text-xs">{user?.email}</span>.</p>
         </Card>
       </div>
     );
@@ -479,6 +782,8 @@ export default function Admin() {
     { key: "users", label: "Users", icon: Users },
     { key: "orders", label: "Orders", icon: ShoppingCart },
     { key: "topups", label: "Top-ups", icon: Wallet },
+    { key: "services", label: "Services", icon: ToggleLeft },
+    { key: "api", label: "API Connect", icon: Link },
     { key: "settings", label: "Payment Settings", icon: Settings },
   ];
 
@@ -492,7 +797,7 @@ export default function Admin() {
             <div className="text-[10px] text-muted-foreground uppercase tracking-widest">Admin Panel</div>
           </div>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {sidebarItems.map((item) => (
             <button
               key={item.key}
@@ -518,6 +823,8 @@ export default function Admin() {
           {tab === "users" && <UsersTab />}
           {tab === "orders" && <OrdersTab />}
           {tab === "topups" && <TopupsTab />}
+          {tab === "services" && <ServicesTab />}
+          {tab === "api" && <ApiTab />}
           {tab === "settings" && <SettingsTab />}
         </div>
       </main>

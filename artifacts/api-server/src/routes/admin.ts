@@ -5,7 +5,7 @@ import { ensureWallet } from "./wallet";
 
 const router = Router();
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "sahnaj791@gmail.com";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "kingjahid0786@gmail.com";
 
 function requireAdmin(req: any, res: any, next: any) {
   if (!req.isAuthenticated()) return res.status(401).json({ error: "Unauthorized" });
@@ -289,6 +289,47 @@ router.patch("/admin/topups/:id", requireAdmin, async (req, res) => {
     });
   } catch (err) {
     req.log.error(err, "Failed to update topup status");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/admin/services", requireAdmin, async (req, res) => {
+  try {
+    const services = await db.select().from(servicesTable).orderBy(servicesTable.platform, servicesTable.name);
+    res.json(services.map((s) => ({ ...s, pricePerThousand: Number(s.pricePerThousand) })));
+  } catch (err) {
+    req.log.error(err, "Failed to list admin services");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/admin/api-settings", requireAdmin, async (req, res) => {
+  try {
+    const rows = await db.select().from(settingsTable);
+    const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    res.json({
+      apiUrl: map["smm_api_url"] ?? "",
+      apiKey: map["smm_api_key"] ?? "",
+      isEnabled: map["smm_api_enabled"] === "true",
+    });
+  } catch (err) {
+    req.log.error(err, "Failed to get API settings");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.put("/admin/api-settings", requireAdmin, async (req, res) => {
+  try {
+    const apiUrl = String(req.body?.apiUrl ?? "");
+    const apiKey = String(req.body?.apiKey ?? "");
+    const isEnabled = req.body?.isEnabled === true;
+
+    for (const [key, value] of [["smm_api_url", apiUrl], ["smm_api_key", apiKey], ["smm_api_enabled", String(isEnabled)]] as [string, string][]) {
+      await db.insert(settingsTable).values({ key, value }).onConflictDoUpdate({ target: settingsTable.key, set: { value, updatedAt: new Date() } });
+    }
+    res.json({ apiUrl, apiKey, isEnabled });
+  } catch (err) {
+    req.log.error(err, "Failed to update API settings");
     res.status(500).json({ error: "Internal server error" });
   }
 });
