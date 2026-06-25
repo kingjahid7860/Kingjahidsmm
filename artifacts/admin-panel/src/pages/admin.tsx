@@ -48,6 +48,7 @@ import { Switch } from "@/components/ui/switch";
 import { Users, ShoppingCart, Wallet, Clock, Settings, ChevronLeft, ChevronRight, Shield, Edit2, Check, X, Plus, Trash2, Link, Key, ToggleLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+const ADMIN_USER_ID = "61264607";
 const ADMIN_EMAIL = "kingjahid0786@gmail.com";
 
 type Tab = "dashboard" | "users" | "orders" | "topups" | "services" | "api" | "settings";
@@ -765,7 +766,8 @@ export default function Admin() {
     return <div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>;
   }
 
-  if (user?.email !== ADMIN_EMAIL) {
+  const isAdmin = user?.id === ADMIN_USER_ID || user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Card className="bg-card/50 border-white/5 p-8 text-center space-y-3 max-w-sm">

@@ -5,11 +5,15 @@ import { ensureWallet } from "./wallet";
 
 const router = Router();
 
+const ADMIN_USER_ID = process.env.ADMIN_USER_ID ?? "61264607";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "kingjahid0786@gmail.com";
 
 function requireAdmin(req: any, res: any, next: any) {
   if (!req.isAuthenticated()) return res.status(401).json({ error: "Unauthorized" });
-  if (req.user?.email !== ADMIN_EMAIL) return res.status(403).json({ error: "Forbidden" });
+  const isAdmin =
+    req.user?.id === ADMIN_USER_ID ||
+    (req.user?.email && req.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+  if (!isAdmin) return res.status(403).json({ error: "Forbidden" });
   next();
 }
 
