@@ -1,9 +1,14 @@
 import * as client from "openid-client";
 import crypto from "crypto";
 import { type Request, type Response } from "express";
-import { db, sessionsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
 import type { User } from "@workspace/api-zod";
+import {
+  createSession as createFirestoreSession,
+  getSession as getFirestoreSession,
+  updateSession as updateFirestoreSession,
+  deleteSession as deleteFirestoreSession,
+  type Session,
+} from "./firestore";
 
 export const ISSUER_URL = process.env.ISSUER_URL ?? "https://replit.com/oidc";
 export const SESSION_COOKIE = "sid";
@@ -30,19 +35,17 @@ export async function getOidcConfig(): Promise<client.Configuration> {
 
 export async function createSession(data: SessionData): Promise<string> {
   const sid = crypto.randomBytes(32).toString("hex");
-  await db.insert(sessionsTable).values({
+  const session: Session = {
     sid,
     sess: data as unknown as Record<string, unknown>,
     expire: new Date(Date.now() + SESSION_TTL),
-  });
+  };
+  await createFirestoreSession(session);
   return sid;
 }
 
 export async function getSession(sid: string): Promise<SessionData | null> {
-  const [row] = await db
-    .select()
-    .from(sessionsTable)
-    .where(eq(sessionsTable.sid, sid));
+  const row = await getFirestoreSession(sid);
 
   if (!row || row.expire < new Date()) {
     if (row) await deleteSession(sid);
@@ -56,17 +59,14 @@ export async function updateSession(
   sid: string,
   data: SessionData,
 ): Promise<void> {
-  await db
-    .update(sessionsTable)
-    .set({
-      sess: data as unknown as Record<string, unknown>,
-      expire: new Date(Date.now() + SESSION_TTL),
-    })
-    .where(eq(sessionsTable.sid, sid));
+  await updateFirestoreSession(sid, {
+    sess: data as unknown as Record<string, unknown>,
+    expire: new Date(Date.now() + SESSION_TTL),
+  });
 }
 
 export async function deleteSession(sid: string): Promise<void> {
-  await db.delete(sessionsTable).where(eq(sessionsTable.sid, sid));
+  await deleteFirestoreSession(sid);
 }
 
 export async function clearSession(

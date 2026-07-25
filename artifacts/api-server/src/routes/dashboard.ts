@@ -1,8 +1,10 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { ordersTable, servicesTable, walletsTable } from "@workspace/db";
-import { eq, and, desc, count, sql } from "drizzle-orm";
-import { ensureWallet } from "./wallet";
+import {
+  ensureWallet,
+  getRecentOrdersByUser,
+  getOrdersByUser,
+  getServiceById,
+} from "../lib/firestore";
 
 const router = Router();
 
@@ -12,44 +14,38 @@ router.get("/dashboard/stats", async (req, res) => {
     const userId = req.user!.id;
 
     const wallet = await ensureWallet(userId);
+    const orders = await getOrdersByUser(userId);
 
-    const [stats] = await db
-      .select({
-        totalOrders: count(),
-        completedOrders: sql<number>`count(*) filter (where ${ordersTable.status} = 'Completed')`,
-        pendingOrders: sql<number>`count(*) filter (where ${ordersTable.status} != 'Completed')`,
-      })
-      .from(ordersTable)
-      .where(eq(ordersTable.userId, userId));
+    const totalOrders = orders.length;
+    const completedOrders = orders.filter((o) => o.status === "Completed").length;
+    const pendingOrders = orders.filter((o) => o.status !== "Completed").length;
 
-    const recentRows = await db
-      .select({
-        order: ordersTable,
-        serviceName: servicesTable.name,
-        platform: servicesTable.platform,
-      })
-      .from(ordersTable)
-      .leftJoin(servicesTable, eq(ordersTable.serviceId, servicesTable.id))
-      .where(eq(ordersTable.userId, userId))
-      .orderBy(desc(ordersTable.createdAt))
-      .limit(5);
+    const recentOrders = orders.slice(0, 5);
+    const serviceIds = Array.from(new Set(recentOrders.map((o) => o.serviceId)));
+    const serviceMap = new Map<string, { name: string; platform: string }>();
+    await Promise.all(
+      serviceIds.map(async (id) => {
+        const service = await getServiceById(id);
+        if (service) serviceMap.set(id, { name: service.name, platform: service.platform });
+      }),
+    );
 
     res.json({
       balance: Number(wallet.balance),
-      totalOrders: Number(stats?.totalOrders ?? 0),
-      completedOrders: Number(stats?.completedOrders ?? 0),
-      pendingOrders: Number(stats?.pendingOrders ?? 0),
+      totalOrders,
+      completedOrders,
+      pendingOrders,
       totalSpent: Number(wallet.totalSpent),
-      recentOrders: recentRows.map((r) => ({
-        id: r.order.id,
-        serviceId: r.order.serviceId,
-        serviceName: r.serviceName ?? "",
-        platform: r.platform ?? "",
-        link: r.order.link,
-        quantity: r.order.quantity,
-        charge: Number(r.order.charge),
-        status: r.order.status,
-        createdAt: r.order.createdAt,
+      recentOrders: recentOrders.map((o) => ({
+        id: o.id,
+        serviceId: o.serviceId,
+        serviceName: serviceMap.get(o.serviceId)?.name ?? "",
+        platform: serviceMap.get(o.serviceId)?.platform ?? "",
+        link: o.link,
+        quantity: o.quantity,
+        charge: Number(o.charge),
+        status: o.status,
+        createdAt: o.createdAt,
       })),
     });
   } catch (err) {

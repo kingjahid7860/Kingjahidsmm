@@ -1,7 +1,27 @@
 import { Router } from "express";
-import { db, usersTable, walletsTable, ordersTable, servicesTable, topupRequestsTable, settingsTable } from "@workspace/db";
-import { eq, desc, sql, and } from "drizzle-orm";
-import { ensureWallet } from "./wallet";
+import {
+  ensureWallet,
+  updateWallet,
+  getAllUsers,
+  getAllWallets,
+  getAllOrders,
+  getAllTopupRequests,
+  getAllServices,
+  getServiceById,
+  getUserById,
+  getSettings,
+  setSetting,
+  createService,
+  updateService,
+  softDeleteService,
+  updateOrder,
+  updateTopupRequest,
+  type Service,
+  type Wallet,
+  type Order,
+  type TopupRequest,
+  type User,
+} from "../lib/firestore";
 
 const router = Router();
 
@@ -19,27 +39,19 @@ function requireAdmin(req: any, res: any, next: any) {
 
 router.get("/admin/stats", requireAdmin, async (req, res) => {
   try {
-    const [{ totalUsers }] = await db
-      .select({ totalUsers: sql<number>`count(*)::int` })
-      .from(usersTable);
-
-    const [{ totalBalance }] = await db
-      .select({ totalBalance: sql<number>`coalesce(sum(balance::numeric), 0)` })
-      .from(walletsTable);
-
-    const [{ totalOrders }] = await db
-      .select({ totalOrders: sql<number>`count(*)::int` })
-      .from(ordersTable);
-
-    const [{ pendingTopups }] = await db
-      .select({ pendingTopups: sql<number>`count(*)::int` })
-      .from(topupRequestsTable)
-      .where(eq(topupRequestsTable.status, "Pending"));
+    const [users, wallets, orders, topups] = await Promise.all([
+      getAllUsers(),
+      getAllWallets(),
+      getAllOrders(),
+      getAllTopupRequests(),
+    ]);
+    const totalBalance = wallets.reduce((sum, w) => sum + Number(w.balance), 0);
+    const pendingTopups = topups.filter((t) => t.status === "Pending").length;
 
     res.json({
-      totalUsers,
-      totalBalance: Number(totalBalance),
-      totalOrders,
+      totalUsers: users.length,
+      totalBalance,
+      totalOrders: orders.length,
       pendingTopups,
     });
   } catch (err) {
@@ -51,22 +63,16 @@ router.get("/admin/stats", requireAdmin, async (req, res) => {
 
 router.get("/admin/users", requireAdmin, async (req, res) => {
   try {
-    const users = await db
-      .select({
-        id: usersTable.id,
-        email: usersTable.email,
-        firstName: usersTable.firstName,
-        lastName: usersTable.lastName,
-        profileImageUrl: usersTable.profileImageUrl,
-        createdAt: usersTable.createdAt,
-        balance: walletsTable.balance,
-        totalOrders: sql<number>`count(${ordersTable.id})::int`,
-      })
-      .from(usersTable)
-      .leftJoin(walletsTable, eq(walletsTable.userId, usersTable.id))
-      .leftJoin(ordersTable, eq(ordersTable.userId, usersTable.id))
-      .groupBy(usersTable.id, walletsTable.balance)
-      .orderBy(desc(usersTable.createdAt));
+    const [users, wallets, orders] = await Promise.all([
+      getAllUsers(),
+      getAllWallets(),
+      getAllOrders(),
+    ]);
+    const walletMap = new Map(wallets.map((w) => [w.userId, w]));
+    const orderCounts = new Map<string, number>();
+    orders.forEach((o) => {
+      orderCounts.set(o.userId, (orderCounts.get(o.userId) || 0) + 1);
+    });
 
     res.json(
       users.map((u) => ({
@@ -75,8 +81,8 @@ router.get("/admin/users", requireAdmin, async (req, res) => {
         firstName: u.firstName,
         lastName: u.lastName,
         profileImageUrl: u.profileImageUrl,
-        balance: Number(u.balance ?? 0),
-        totalOrders: u.totalOrders,
+        balance: Number(walletMap.get(u.id)?.balance ?? 0),
+        totalOrders: orderCounts.get(u.id) ?? 0,
         createdAt: u.createdAt,
       })),
     );
@@ -94,11 +100,10 @@ router.patch("/admin/users/:id/balance", requireAdmin, async (req, res) => {
     if (isNaN(balance) || balance < 0) return res.status(400).json({ error: "Invalid balance" });
 
     const wallet = await ensureWallet(userId);
-    const [updated] = await db
-      .update(walletsTable)
-      .set({ balance: String(balance), updatedAt: new Date() })
-      .where(eq(walletsTable.userId, userId))
-      .returning();
+    const updated = await updateWallet(userId, {
+      balance,
+      updatedAt: new Date(),
+    });
 
     res.json({
       balance: Number(updated.balance),
@@ -119,38 +124,28 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
     const offset = (pageNum - 1) * limitNum;
 
-    const conditions: any[] = [];
-    if (status && status !== "all") conditions.push(eq(ordersTable.status, status));
+    const orders = await getAllOrders(status && status !== "all" ? status : undefined);
 
-    const rows = await db
-      .select({
-        order: ordersTable,
-        serviceName: servicesTable.name,
-        platform: servicesTable.platform,
-        userEmail: usersTable.email,
-      })
-      .from(ordersTable)
-      .leftJoin(servicesTable, eq(ordersTable.serviceId, servicesTable.id))
-      .leftJoin(usersTable, eq(ordersTable.userId, usersTable.id))
-      .where(conditions.length ? and(...conditions) : undefined)
-      .orderBy(desc(ordersTable.createdAt));
+    const [users, services] = await Promise.all([getAllUsers(), getAllServices()]);
+    const userMap = new Map(users.map((u) => [u.id, u]));
+    const serviceMap = new Map(services.map((s) => [s.id, s]));
 
-    const total = rows.length;
-    const paginated = rows.slice(offset, offset + limitNum);
+    const total = orders.length;
+    const paginated = orders.slice(offset, offset + limitNum);
 
     res.json({
-      orders: paginated.map((r) => ({
-        id: r.order.id,
-        userId: r.order.userId,
-        userEmail: r.userEmail ?? null,
-        serviceId: r.order.serviceId,
-        serviceName: r.serviceName ?? "",
-        platform: r.platform ?? "",
-        link: r.order.link,
-        quantity: r.order.quantity,
-        charge: Number(r.order.charge),
-        status: r.order.status,
-        createdAt: r.order.createdAt,
+      orders: paginated.map((o) => ({
+        id: o.id,
+        userId: o.userId,
+        userEmail: userMap.get(o.userId)?.email ?? null,
+        serviceId: o.serviceId,
+        serviceName: serviceMap.get(o.serviceId)?.name ?? "",
+        platform: serviceMap.get(o.serviceId)?.platform ?? "",
+        link: o.link,
+        quantity: o.quantity,
+        charge: Number(o.charge),
+        status: o.status,
+        createdAt: o.createdAt,
       })),
       total,
       page: pageNum,
@@ -165,39 +160,29 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
 
 router.patch("/admin/orders/:id/status", requireAdmin, async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = String(req.params.id);
     const status = String(req.body?.status ?? "");
     if (!["Pending", "Processing", "Completed", "Cancelled"].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
-    const [row] = await db
-      .select({
-        order: ordersTable,
-        serviceName: servicesTable.name,
-        platform: servicesTable.platform,
-        userEmail: usersTable.email,
-      })
-      .from(ordersTable)
-      .leftJoin(servicesTable, eq(ordersTable.serviceId, servicesTable.id))
-      .leftJoin(usersTable, eq(ordersTable.userId, usersTable.id))
-      .where(eq(ordersTable.id, id));
+    const order = await getAllOrders().then((orders) => orders.find((o) => o.id === id));
+    if (!order) return res.status(404).json({ error: "Order not found" });
 
-    if (!row) return res.status(404).json({ error: "Order not found" });
+    const [user, service] = await Promise.all([
+      getUserById(order.userId),
+      getServiceById(order.serviceId),
+    ]);
 
-    const [updated] = await db
-      .update(ordersTable)
-      .set({ status })
-      .where(eq(ordersTable.id, id))
-      .returning();
+    const updated = await updateOrder(id, { status });
 
     res.json({
       id: updated.id,
       userId: updated.userId,
-      userEmail: row.userEmail ?? null,
+      userEmail: user?.email ?? null,
       serviceId: updated.serviceId,
-      serviceName: row.serviceName ?? "",
-      platform: row.platform ?? "",
+      serviceName: service?.name ?? "",
+      platform: service?.platform ?? "",
       link: updated.link,
       quantity: updated.quantity,
       charge: Number(updated.charge),
@@ -218,32 +203,23 @@ router.get("/admin/topups", requireAdmin, async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
     const offset = (pageNum - 1) * limitNum;
 
-    const conditions: any[] = [];
-    if (status && status !== "all") conditions.push(eq(topupRequestsTable.status, status));
+    const topups = await getAllTopupRequests(status && status !== "all" ? status : undefined);
+    const users = await getAllUsers();
+    const userMap = new Map(users.map((u) => [u.id, u]));
 
-    const rows = await db
-      .select({
-        topup: topupRequestsTable,
-        userEmail: usersTable.email,
-      })
-      .from(topupRequestsTable)
-      .leftJoin(usersTable, eq(topupRequestsTable.userId, usersTable.id))
-      .where(conditions.length ? and(...conditions) : undefined)
-      .orderBy(desc(topupRequestsTable.createdAt));
-
-    const total = rows.length;
-    const paginated = rows.slice(offset, offset + limitNum);
+    const total = topups.length;
+    const paginated = topups.slice(offset, offset + limitNum);
 
     res.json({
-      topups: paginated.map((r) => ({
-        id: r.topup.id,
-        userId: r.topup.userId,
-        userEmail: r.userEmail ?? null,
-        amount: Number(r.topup.amount),
-        paymentMethod: r.topup.paymentMethod,
-        transactionId: r.topup.transactionId,
-        status: r.topup.status,
-        createdAt: r.topup.createdAt,
+      topups: paginated.map((t) => ({
+        id: t.id,
+        userId: t.userId,
+        userEmail: userMap.get(t.userId)?.email ?? null,
+        amount: Number(t.amount),
+        paymentMethod: t.paymentMethod,
+        transactionId: t.transactionId,
+        status: t.status,
+        createdAt: t.createdAt,
       })),
       total,
       page: pageNum,
@@ -258,39 +234,34 @@ router.get("/admin/topups", requireAdmin, async (req, res) => {
 
 router.patch("/admin/topups/:id", requireAdmin, async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = String(req.params.id);
     const status = String(req.body?.status ?? "");
     if (!["Pending", "Approved", "Rejected"].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
-    const [topup] = await db
-      .select({ topup: topupRequestsTable, userEmail: usersTable.email })
-      .from(topupRequestsTable)
-      .leftJoin(usersTable, eq(topupRequestsTable.userId, usersTable.id))
-      .where(eq(topupRequestsTable.id, id));
+    const topup = await getAllTopupRequests().then((topups) => topups.find((t) => t.id === id));
     if (!topup) return res.status(404).json({ error: "Topup not found" });
 
-    const [updated] = await db
-      .update(topupRequestsTable)
-      .set({ status })
-      .where(eq(topupRequestsTable.id, id))
-      .returning();
+    const user = await getUserById(topup.userId);
 
-    if (status === "Approved" && topup.topup.status !== "Approved") {
-      const wallet = await ensureWallet(topup.topup.userId);
-      const newBalance = Number(wallet.balance) + Number(topup.topup.amount);
-      const newAdded = Number(wallet.totalAdded) + Number(topup.topup.amount);
-      await db
-        .update(walletsTable)
-        .set({ balance: String(newBalance), totalAdded: String(newAdded), updatedAt: new Date() })
-        .where(eq(walletsTable.userId, topup.topup.userId));
+    const updated = await updateTopupRequest(id, { status });
+
+    if (status === "Approved" && topup.status !== "Approved") {
+      const wallet = await ensureWallet(topup.userId);
+      const newBalance = Number(wallet.balance) + Number(topup.amount);
+      const newAdded = Number(wallet.totalAdded) + Number(topup.amount);
+      await updateWallet(topup.userId, {
+        balance: newBalance,
+        totalAdded: newAdded,
+        updatedAt: new Date(),
+      });
     }
 
     res.json({
       id: updated.id,
       userId: updated.userId,
-      userEmail: topup.userEmail ?? null,
+      userEmail: user?.email ?? null,
       amount: Number(updated.amount),
       paymentMethod: updated.paymentMethod,
       transactionId: updated.transactionId,
@@ -306,7 +277,7 @@ router.patch("/admin/topups/:id", requireAdmin, async (req, res) => {
 
 router.get("/admin/services", requireAdmin, async (req, res) => {
   try {
-    const services = await db.select().from(servicesTable).orderBy(servicesTable.platform, servicesTable.name);
+    const services = await getAllServices();
     res.json(services.map((s) => ({ ...s, pricePerThousand: Number(s.pricePerThousand) })));
   } catch (err) {
     req.log.error(err, "Failed to list admin services");
@@ -317,7 +288,7 @@ router.get("/admin/services", requireAdmin, async (req, res) => {
 
 router.get("/admin/api-settings", requireAdmin, async (req, res) => {
   try {
-    const rows = await db.select().from(settingsTable);
+    const rows = await getSettings();
     const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     res.json({
       apiUrl: map["smm_api_url"] ?? "",
@@ -337,9 +308,9 @@ router.put("/admin/api-settings", requireAdmin, async (req, res) => {
     const apiKey = String(req.body?.apiKey ?? "");
     const isEnabled = req.body?.isEnabled === true;
 
-    for (const [key, value] of [["smm_api_url", apiUrl], ["smm_api_key", apiKey], ["smm_api_enabled", String(isEnabled)]] as [string, string][]) {
-      await db.insert(settingsTable).values({ key, value }).onConflictDoUpdate({ target: settingsTable.key, set: { value, updatedAt: new Date() } });
-    }
+    await setSetting("smm_api_url", apiUrl);
+    await setSetting("smm_api_key", apiKey);
+    await setSetting("smm_api_enabled", String(isEnabled));
     res.json({ apiUrl, apiKey, isEnabled });
   } catch (err) {
     req.log.error(err, "Failed to update API settings");
@@ -350,7 +321,7 @@ router.put("/admin/api-settings", requireAdmin, async (req, res) => {
 
 router.get("/admin/settings", requireAdmin, async (req, res) => {
   try {
-    const rows = await db.select().from(settingsTable);
+    const rows = await getSettings();
     const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     res.json({
       upiId: map["upi_id"] ?? "",
@@ -368,16 +339,8 @@ router.put("/admin/settings", requireAdmin, async (req, res) => {
     const upiId = String(req.body?.upiId ?? "");
     const qrUrl = String(req.body?.qrUrl ?? "");
 
-    await db
-      .insert(settingsTable)
-      .values({ key: "upi_id", value: upiId })
-      .onConflictDoUpdate({ target: settingsTable.key, set: { value: upiId, updatedAt: new Date() } });
-
-    await db
-      .insert(settingsTable)
-      .values({ key: "qr_url", value: qrUrl })
-      .onConflictDoUpdate({ target: settingsTable.key, set: { value: qrUrl, updatedAt: new Date() } });
-
+    await setSetting("upi_id", upiId);
+    await setSetting("qr_url", qrUrl);
     res.json({ upiId, qrUrl });
   } catch (err) {
     req.log.error(err, "Failed to update payment settings");
@@ -392,19 +355,16 @@ router.post("/admin/services", requireAdmin, async (req, res) => {
     if (!name || !category || !platform || !description || pricePerThousand == null) {
       return res.status(400).json({ error: "Missing required fields" });
     }
-    const [service] = await db
-      .insert(servicesTable)
-      .values({
-        name,
-        category,
-        platform,
-        description,
-        pricePerThousand: String(pricePerThousand),
-        minQuantity: Number(minQuantity),
-        maxQuantity: Number(maxQuantity),
-        isActive: true,
-      })
-      .returning();
+    const service = await createService({
+      name,
+      category,
+      platform,
+      description,
+      pricePerThousand: Number(pricePerThousand),
+      minQuantity: Number(minQuantity),
+      maxQuantity: Number(maxQuantity),
+      isActive: true,
+    });
     res.status(201).json({ ...service, pricePerThousand: Number(service.pricePerThousand) });
   } catch (err) {
     req.log.error(err, "Failed to create service");
@@ -415,21 +375,17 @@ router.post("/admin/services", requireAdmin, async (req, res) => {
 
 router.patch("/admin/services/:id", requireAdmin, async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = String(req.params.id);
     const { name, category, platform, description, pricePerThousand, minQuantity, maxQuantity } = req.body;
-    const [service] = await db
-      .update(servicesTable)
-      .set({
-        name,
-        category,
-        platform,
-        description,
-        pricePerThousand: String(pricePerThousand),
-        minQuantity: Number(minQuantity),
-        maxQuantity: Number(maxQuantity),
-      })
-      .where(eq(servicesTable.id, id))
-      .returning();
+    const service = await updateService(id, {
+      name,
+      category,
+      platform,
+      description,
+      pricePerThousand: Number(pricePerThousand),
+      minQuantity: Number(minQuantity),
+      maxQuantity: Number(maxQuantity),
+    });
     if (!service) return res.status(404).json({ error: "Service not found" });
     res.json({ ...service, pricePerThousand: Number(service.pricePerThousand) });
   } catch (err) {
@@ -441,8 +397,8 @@ router.patch("/admin/services/:id", requireAdmin, async (req, res) => {
 
 router.delete("/admin/services/:id", requireAdmin, async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    await db.update(servicesTable).set({ isActive: false }).where(eq(servicesTable.id, id));
+    const id = String(req.params.id);
+    await softDeleteService(id);
     res.json({ success: true });
   } catch (err) {
     req.log.error(err, "Failed to delete service");

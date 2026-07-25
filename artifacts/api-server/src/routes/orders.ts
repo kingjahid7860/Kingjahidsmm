@@ -1,9 +1,13 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { ordersTable, servicesTable, walletsTable } from "@workspace/db";
-import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
+import {
+  getOrdersByUserAndStatus,
+  getServiceById,
+  ensureWallet,
+  updateWallet,
+  createOrder,
+  getOrderById,
+} from "../lib/firestore";
 import { CreateOrderBody } from "@workspace/api-zod";
-import { ensureWallet } from "./wallet";
 
 const router = Router();
 
@@ -15,52 +19,47 @@ router.get("/orders", async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
     const offset = (pageNum - 1) * limitNum;
 
-    const conditions = [eq(ordersTable.userId, req.user!.id)];
+    let statusFilter: string | null = null;
     if (status && status !== "all") {
-      if (status === "completed") {
-        conditions.push(eq(ordersTable.status, "Completed"));
-      } else if (status === "pending") {
-        conditions.push(sql`${ordersTable.status} != 'Completed'`);
-      }
+      if (status === "completed") statusFilter = "Completed";
+      else if (status === "pending") statusFilter = "Pending";
     }
 
-    const baseQuery = db
-      .select({
-        order: ordersTable,
-        serviceName: servicesTable.name,
-        platform: servicesTable.platform,
-      })
-      .from(ordersTable)
-      .leftJoin(servicesTable, eq(ordersTable.serviceId, servicesTable.id))
-      .where(and(...conditions))
-      .orderBy(desc(ordersTable.createdAt));
+    const allRows = await getOrdersByUserAndStatus(req.user!.id, statusFilter);
 
-    const allRows = await baseQuery;
     let filtered = allRows;
-
     if (search) {
       const term = search.toLowerCase();
       filtered = allRows.filter(
         (r) =>
-          String(r.order.id).includes(term) ||
-          (r.serviceName ?? "").toLowerCase().includes(term),
+          String(r.id).includes(term) ||
+          r.link.toLowerCase().includes(term),
       );
     }
+
+    const serviceIds = Array.from(new Set(filtered.map((o) => o.serviceId)));
+    const serviceMap = new Map<string, { name: string; platform: string }>();
+    await Promise.all(
+      serviceIds.map(async (id) => {
+        const service = await getServiceById(id);
+        if (service) serviceMap.set(id, { name: service.name, platform: service.platform });
+      }),
+    );
 
     const total = filtered.length;
     const paginated = filtered.slice(offset, offset + limitNum);
 
     res.json({
       orders: paginated.map((r) => ({
-        id: r.order.id,
-        serviceId: r.order.serviceId,
-        serviceName: r.serviceName ?? "",
-        platform: r.platform ?? "",
-        link: r.order.link,
-        quantity: r.order.quantity,
-        charge: Number(r.order.charge),
-        status: r.order.status,
-        createdAt: r.order.createdAt,
+        id: r.id,
+        serviceId: r.serviceId,
+        serviceName: serviceMap.get(r.serviceId)?.name ?? "",
+        platform: serviceMap.get(r.serviceId)?.platform ?? "",
+        link: r.link,
+        quantity: r.quantity,
+        charge: Number(r.charge),
+        status: r.status,
+        createdAt: r.createdAt,
       })),
       total,
       page: pageNum,
@@ -80,10 +79,7 @@ router.post("/orders", async (req, res) => {
     if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
     const { serviceId, link, quantity } = parsed.data;
 
-    const [service] = await db
-      .select()
-      .from(servicesTable)
-      .where(eq(servicesTable.id, serviceId));
+    const service = await getServiceById(String(serviceId));
     if (!service) return res.status(404).json({ error: "Service not found" });
 
     if (quantity < service.minQuantity || quantity > service.maxQuantity) {
@@ -98,27 +94,20 @@ router.post("/orders", async (req, res) => {
       return res.status(400).json({ error: "Insufficient balance" });
     }
 
-    const [newWallet] = await db
-      .update(walletsTable)
-      .set({
-        balance: String(Number(wallet.balance) - charge),
-        totalSpent: String(Number(wallet.totalSpent) + charge),
-        updatedAt: new Date(),
-      })
-      .where(eq(walletsTable.userId, req.user!.id))
-      .returning();
+    await updateWallet(req.user!.id, {
+      balance: Number(wallet.balance) - charge,
+      totalSpent: Number(wallet.totalSpent) + charge,
+      updatedAt: new Date(),
+    });
 
-    const [order] = await db
-      .insert(ordersTable)
-      .values({
-        userId: req.user!.id,
-        serviceId,
-        link,
-        quantity,
-        charge: String(charge),
-        status: "Pending",
-      })
-      .returning();
+    const order = await createOrder({
+      userId: req.user!.id,
+      serviceId: String(serviceId),
+      link,
+      quantity,
+      charge,
+      status: "Pending",
+    });
 
     res.status(201).json({
       id: order.id,
@@ -141,27 +130,22 @@ router.post("/orders", async (req, res) => {
 router.get("/orders/:id", async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: "Unauthorized" });
   try {
-    const id = Number(req.params.id);
-    const [row] = await db
-      .select({
-        order: ordersTable,
-        serviceName: servicesTable.name,
-        platform: servicesTable.platform,
-      })
-      .from(ordersTable)
-      .leftJoin(servicesTable, eq(ordersTable.serviceId, servicesTable.id))
-      .where(and(eq(ordersTable.id, id), eq(ordersTable.userId, req.user!.id)));
-    if (!row) return res.status(404).json({ error: "Not found" });
+    const id = String(req.params.id);
+    const order = await getOrderById(id);
+    if (!order || order.userId !== req.user!.id) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    const service = await getServiceById(order.serviceId);
     res.json({
-      id: row.order.id,
-      serviceId: row.order.serviceId,
-      serviceName: row.serviceName ?? "",
-      platform: row.platform ?? "",
-      link: row.order.link,
-      quantity: row.order.quantity,
-      charge: Number(row.order.charge),
-      status: row.order.status,
-      createdAt: row.order.createdAt,
+      id: order.id,
+      serviceId: order.serviceId,
+      serviceName: service?.name ?? "",
+      platform: service?.platform ?? "",
+      link: order.link,
+      quantity: order.quantity,
+      charge: Number(order.charge),
+      status: order.status,
+      createdAt: order.createdAt,
     });
   } catch (err) {
     req.log.error(err, "Failed to get order");

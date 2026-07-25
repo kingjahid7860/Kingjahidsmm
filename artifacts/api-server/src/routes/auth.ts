@@ -1,6 +1,11 @@
 import * as oidc from "openid-client";
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, usersTable } from "@workspace/db";
+import type { User } from "@workspace/api-zod";
+import {
+  upsertUser,
+  getUserById,
+  type User as FirestoreUser,
+} from "../lib/firestore";
 import {
   clearSession,
   getOidcConfig,
@@ -51,30 +56,23 @@ function getSafeReturnTo(value: unknown): string {
   return value;
 }
 
-async function upsertUser(claims: Record<string, unknown>) {
-  const userData = {
-    id: claims.sub as string,
+async function upsertUserFromClaims(claims: Record<string, unknown>): Promise<FirestoreUser> {
+  const id = claims.sub as string;
+  const existing = await getUserById(id);
+  const now = new Date();
+  const userData: FirestoreUser = {
+    id,
     email: (claims.email as string) || null,
     firstName: (claims.first_name as string) || null,
     lastName: (claims.last_name as string) || null,
     profileImageUrl: (claims.profile_image_url || claims.picture) as
       | string
       | null,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
   };
-
-  const { id, ...updateData } = userData;
-  const [user] = await db
-    .insert(usersTable)
-    .values(userData)
-    .onConflictDoUpdate({
-      target: usersTable.id,
-      set: {
-        ...updateData,
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
-  return user;
+  await upsertUser(userData);
+  return userData;
 }
 
 router.get("/auth/user", (req: Request, res: Response) => {
@@ -155,7 +153,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     return;
   }
 
-  const dbUser = await upsertUser(
+  const dbUser = await upsertUserFromClaims(
     claims as unknown as Record<string, unknown>,
   );
 
@@ -168,7 +166,7 @@ router.get("/callback", async (req: Request, res: Response) => {
       lastName: dbUser.lastName,
       profileImageUrl: dbUser.profileImageUrl,
       createdAt: dbUser.createdAt,
-    },
+    } as User,
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
     expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
@@ -224,7 +222,7 @@ router.post(
         return;
       }
 
-      const dbUser = await upsertUser(
+      const dbUser = await upsertUserFromClaims(
         claims as unknown as Record<string, unknown>,
       );
 
@@ -237,7 +235,7 @@ router.post(
           lastName: dbUser.lastName,
           profileImageUrl: dbUser.profileImageUrl,
           createdAt: dbUser.createdAt,
-        },
+        } as User,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
