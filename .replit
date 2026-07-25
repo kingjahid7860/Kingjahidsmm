@@ -58,3 +58,13 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+FIREBASE_APP_ID = "1:767088510240:web:e2d7cd97c2dfc58dc30345"
+FIREBASE_AUTH_DOMAIN = "kingsmm-dab0e.firebaseapp.com"
+FIREBASE_MEASUREMENT_ID = "G-TLFERNQ6MK"
+FIREBASE_MESSAGING_SENDER_ID = "767088510240"
+FIREBASE_PROJECT_ID = "kingsmm-dab0e"
+FIREBASE_STORAGE_BUCKET = "kingsmm-dab0e.firebasestorage.app"
