@@ -1,0 +1,1 @@
+- [Firebase Realtime Database backend](firebase-rtdb.md) — API server uses the Firebase web SDK against RTDB, not Firestore, with numeric IDs from `counters/{name}` transactions.

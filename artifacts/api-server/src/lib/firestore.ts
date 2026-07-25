@@ -1,28 +1,23 @@
 import { initializeApp } from "firebase/app";
 import {
-  getFirestore,
-  collection,
-  doc,
-  setDoc,
-  getDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  addDoc,
-  query,
-  where,
-  orderBy,
-  limit,
+  getDatabase,
+  ref,
+  get,
+  set,
+  update,
+  remove,
   runTransaction,
-  Timestamp,
-  type DocumentData,
-  type DocumentSnapshot,
-  type Firestore,
-} from "firebase/firestore";
+  type Database,
+  type DataSnapshot,
+  type TransactionResult,
+} from "firebase/database";
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  databaseURL:
+    process.env.FIREBASE_DATABASE_URL ??
+    "https://kingsmm-dab0e-default-rtdb.firebaseio.com",
   projectId: process.env.FIREBASE_PROJECT_ID,
   storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
@@ -40,16 +35,24 @@ function getFirebaseApp() {
 }
 
 const app = getFirebaseApp();
-export const firestore: Firestore = getFirestore(app);
-
-function withId<T>(docSnap: DocumentSnapshot<DocumentData>): T & { id: string } {
-  return { id: docSnap.id, ...(docSnap.data() as T) };
-}
+export const rtdb: Database = getDatabase(app);
 
 function toNumber(value: unknown): number {
   if (typeof value === "number") return value;
   if (typeof value === "string") return Number(value);
   return 0;
+}
+
+function dateFromDb(value: unknown): Date {
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+  if (typeof value === "string") return new Date(value);
+  return new Date();
+}
+
+function toDbDate(value: Date | string | number): string {
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
 }
 
 export interface User {
@@ -117,46 +120,32 @@ export interface Session {
   expire: Date;
 }
 
-function dateFromFirestore(value: unknown): Date {
-  if (value instanceof Timestamp) return value.toDate();
-  if (value instanceof Date) return value;
-  if (typeof value === "string") return new Date(value);
-  return new Date();
-}
-
-function timestampFromDate(value: Date | string | number): Timestamp {
-  if (value instanceof Date) return Timestamp.fromDate(value);
-  return Timestamp.fromDate(new Date(value));
-}
-
-export function userFromDoc(docSnap: DocumentSnapshot<DocumentData>): User {
-  const data = docSnap.data() as DocumentData;
+function userFromChild(id: string, data: Record<string, unknown>): User {
   return {
-    id: docSnap.id,
+    id,
     email: (data.email as string | null) ?? null,
     firstName: (data.firstName as string | null) ?? null,
     lastName: (data.lastName as string | null) ?? null,
     profileImageUrl: (data.profileImageUrl as string | null) ?? null,
-    createdAt: dateFromFirestore(data.createdAt),
-    updatedAt: dateFromFirestore(data.updatedAt),
+    createdAt: dateFromDb(data.createdAt),
+    updatedAt: dateFromDb(data.updatedAt),
   };
 }
 
-export function userToDoc(user: Partial<User>): DocumentData {
-  const data: DocumentData = {};
+export function userToDoc(user: Partial<User>): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
   if (user.email !== undefined) data.email = user.email;
   if (user.firstName !== undefined) data.firstName = user.firstName;
   if (user.lastName !== undefined) data.lastName = user.lastName;
   if (user.profileImageUrl !== undefined) data.profileImageUrl = user.profileImageUrl;
-  if (user.createdAt !== undefined) data.createdAt = timestampFromDate(user.createdAt);
-  if (user.updatedAt !== undefined) data.updatedAt = timestampFromDate(user.updatedAt);
+  if (user.createdAt !== undefined) data.createdAt = toDbDate(user.createdAt);
+  if (user.updatedAt !== undefined) data.updatedAt = toDbDate(user.updatedAt);
   return data;
 }
 
-export function serviceFromDoc(docSnap: DocumentSnapshot<DocumentData>): Service {
-  const data = docSnap.data() as DocumentData;
+export function serviceFromChild(id: string, data: Record<string, unknown>): Service {
   return {
-    id: docSnap.id,
+    id,
     name: (data.name as string) ?? "",
     category: (data.category as string) ?? "",
     platform: (data.platform as string) ?? "",
@@ -165,12 +154,12 @@ export function serviceFromDoc(docSnap: DocumentSnapshot<DocumentData>): Service
     minQuantity: toNumber(data.minQuantity),
     maxQuantity: toNumber(data.maxQuantity),
     isActive: (data.isActive as boolean) ?? true,
-    createdAt: dateFromFirestore(data.createdAt),
+    createdAt: dateFromDb(data.createdAt),
   };
 }
 
-export function serviceToDoc(data: Partial<Service>): DocumentData {
-  const docData: DocumentData = {};
+export function serviceToDoc(data: Partial<Service>): Record<string, unknown> {
+  const docData: Record<string, unknown> = {};
   if (data.name !== undefined) docData.name = data.name;
   if (data.category !== undefined) docData.category = data.category;
   if (data.platform !== undefined) docData.platform = data.platform;
@@ -179,157 +168,164 @@ export function serviceToDoc(data: Partial<Service>): DocumentData {
   if (data.minQuantity !== undefined) docData.minQuantity = data.minQuantity;
   if (data.maxQuantity !== undefined) docData.maxQuantity = data.maxQuantity;
   if (data.isActive !== undefined) docData.isActive = data.isActive;
-  if (data.createdAt !== undefined) docData.createdAt = timestampFromDate(data.createdAt);
+  if (data.createdAt !== undefined) docData.createdAt = toDbDate(data.createdAt);
   return docData;
 }
 
-export function orderFromDoc(docSnap: DocumentSnapshot<DocumentData>): Order {
-  const data = docSnap.data() as DocumentData;
+export function orderFromChild(id: string, data: Record<string, unknown>): Order {
   return {
-    id: docSnap.id,
+    id,
     userId: (data.userId as string) ?? "",
     serviceId: (data.serviceId as string) ?? "",
     link: (data.link as string) ?? "",
     quantity: toNumber(data.quantity),
     charge: toNumber(data.charge),
     status: (data.status as string) ?? "Pending",
-    createdAt: dateFromFirestore(data.createdAt),
+    createdAt: dateFromDb(data.createdAt),
   };
 }
 
-export function orderToDoc(data: Partial<Order>): DocumentData {
-  const docData: DocumentData = {};
+export function orderToDoc(data: Partial<Order>): Record<string, unknown> {
+  const docData: Record<string, unknown> = {};
   if (data.userId !== undefined) docData.userId = data.userId;
   if (data.serviceId !== undefined) docData.serviceId = data.serviceId;
   if (data.link !== undefined) docData.link = data.link;
   if (data.quantity !== undefined) docData.quantity = data.quantity;
   if (data.charge !== undefined) docData.charge = data.charge;
   if (data.status !== undefined) docData.status = data.status;
-  if (data.createdAt !== undefined) docData.createdAt = timestampFromDate(data.createdAt);
+  if (data.createdAt !== undefined) docData.createdAt = toDbDate(data.createdAt);
   return docData;
 }
 
-export function walletFromDoc(docSnap: DocumentSnapshot<DocumentData>): Wallet {
-  const data = docSnap.data() as DocumentData;
+export function walletFromChild(id: string, data: Record<string, unknown>): Wallet {
   return {
-    id: docSnap.id,
-    userId: docSnap.id,
+    id,
+    userId: id,
     balance: toNumber(data.balance),
     totalSpent: toNumber(data.totalSpent),
     totalAdded: toNumber(data.totalAdded),
-    updatedAt: dateFromFirestore(data.updatedAt),
+    updatedAt: dateFromDb(data.updatedAt),
   };
 }
 
-export function walletToDoc(data: Partial<Wallet>): DocumentData {
-  const docData: DocumentData = {};
+export function walletToDoc(data: Partial<Wallet>): Record<string, unknown> {
+  const docData: Record<string, unknown> = {};
   if (data.balance !== undefined) docData.balance = data.balance;
   if (data.totalSpent !== undefined) docData.totalSpent = data.totalSpent;
   if (data.totalAdded !== undefined) docData.totalAdded = data.totalAdded;
-  if (data.updatedAt !== undefined) docData.updatedAt = timestampFromDate(data.updatedAt);
+  if (data.updatedAt !== undefined) docData.updatedAt = toDbDate(data.updatedAt);
   return docData;
 }
 
-export function topupFromDoc(docSnap: DocumentSnapshot<DocumentData>): TopupRequest {
-  const data = docSnap.data() as DocumentData;
+export function topupFromChild(id: string, data: Record<string, unknown>): TopupRequest {
   return {
-    id: docSnap.id,
+    id,
     userId: (data.userId as string) ?? "",
     amount: toNumber(data.amount),
     paymentMethod: (data.paymentMethod as string) ?? "",
     transactionId: (data.transactionId as string) ?? "",
     status: (data.status as string) ?? "Pending",
-    createdAt: dateFromFirestore(data.createdAt),
+    createdAt: dateFromDb(data.createdAt),
   };
 }
 
-export function topupToDoc(data: Partial<TopupRequest>): DocumentData {
-  const docData: DocumentData = {};
+export function topupToDoc(data: Partial<TopupRequest>): Record<string, unknown> {
+  const docData: Record<string, unknown> = {};
   if (data.userId !== undefined) docData.userId = data.userId;
   if (data.amount !== undefined) docData.amount = data.amount;
   if (data.paymentMethod !== undefined) docData.paymentMethod = data.paymentMethod;
   if (data.transactionId !== undefined) docData.transactionId = data.transactionId;
   if (data.status !== undefined) docData.status = data.status;
-  if (data.createdAt !== undefined) docData.createdAt = timestampFromDate(data.createdAt);
+  if (data.createdAt !== undefined) docData.createdAt = toDbDate(data.createdAt);
   return docData;
 }
 
-export function settingsFromDoc(docSnap: DocumentSnapshot<DocumentData>): SettingsItem {
-  const data = docSnap.data() as DocumentData;
+export function settingsFromChild(key: string, data: Record<string, unknown>): SettingsItem {
   return {
-    key: docSnap.id,
+    key,
     value: (data.value as string) ?? "",
-    updatedAt: dateFromFirestore(data.updatedAt),
+    updatedAt: dateFromDb(data.updatedAt),
   };
 }
 
-export function settingsToDoc(data: Partial<SettingsItem>): DocumentData {
-  const docData: DocumentData = {};
+export function settingsToDoc(data: Partial<SettingsItem>): Record<string, unknown> {
+  const docData: Record<string, unknown> = {};
   if (data.value !== undefined) docData.value = data.value;
-  if (data.updatedAt !== undefined) docData.updatedAt = timestampFromDate(data.updatedAt);
+  if (data.updatedAt !== undefined) docData.updatedAt = toDbDate(data.updatedAt);
   return docData;
 }
 
-export function sessionFromDoc(docSnap: DocumentSnapshot<DocumentData>): Session {
-  const data = docSnap.data() as DocumentData;
+export function sessionFromChild(id: string, data: Record<string, unknown>): Session {
   return {
-    sid: docSnap.id,
+    sid: id,
     sess: (data.sess as Record<string, unknown>) ?? {},
-    expire: dateFromFirestore(data.expire),
+    expire: dateFromDb(data.expire),
   };
 }
 
-export function sessionToDoc(data: Partial<Session>): DocumentData {
-  const docData: DocumentData = {};
+export function sessionToDoc(data: Partial<Session>): Record<string, unknown> {
+  const docData: Record<string, unknown> = {};
   if (data.sess !== undefined) docData.sess = data.sess;
-  if (data.expire !== undefined) docData.expire = timestampFromDate(data.expire);
+  if (data.expire !== undefined) docData.expire = toDbDate(data.expire);
   return docData;
+}
+
+function snapshotToList<T>(
+  snapshot: DataSnapshot,
+  mapper: (key: string, val: Record<string, unknown>) => T,
+): T[] {
+  const list: T[] = [];
+  if (!snapshot.exists()) return list;
+  snapshot.forEach((child) => {
+    const key = child.key;
+    if (key) {
+      list.push(mapper(key, (child.val() as Record<string, unknown>) ?? {}));
+    }
+    return false;
+  });
+  return list;
 }
 
 // Users
 export async function upsertUser(user: User): Promise<User> {
-  const ref = doc(firestore, "users", user.id);
-  await setDoc(ref, userToDoc(user), { merge: true });
+  await set(ref(rtdb, `users/${user.id}`), userToDoc(user));
   return user;
 }
 
 export async function getUserById(id: string): Promise<User | null> {
-  const ref = doc(firestore, "users", id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return userFromDoc(snap);
+  const snapshot = await get(ref(rtdb, `users/${id}`));
+  if (!snapshot.exists()) return null;
+  return userFromChild(id, snapshot.val() as Record<string, unknown>);
 }
 
 export async function getAllUsers(): Promise<User[]> {
-  const q = query(collection(firestore, "users"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map(userFromDoc);
+  const snapshot = await get(ref(rtdb, "users"));
+  const list = snapshotToList(snapshot, userFromChild);
+  return list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 // Wallets
 export async function getWalletByUserId(userId: string): Promise<Wallet | null> {
-  const ref = doc(firestore, "wallets", userId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return walletFromDoc(snap);
+  const snapshot = await get(ref(rtdb, `wallets/${userId}`));
+  if (!snapshot.exists()) return null;
+  return walletFromChild(userId, snapshot.val() as Record<string, unknown>);
 }
 
 export async function getAllWallets(): Promise<Wallet[]> {
-  const snap = await getDocs(collection(firestore, "wallets"));
-  return snap.docs.map(walletFromDoc);
+  const snapshot = await get(ref(rtdb, "wallets"));
+  return snapshotToList(snapshot, walletFromChild);
 }
 
 export async function createWallet(wallet: Wallet): Promise<Wallet> {
-  const ref = doc(firestore, "wallets", wallet.userId);
-  await setDoc(ref, walletToDoc(wallet));
+  await set(ref(rtdb, `wallets/${wallet.userId}`), walletToDoc(wallet));
   return wallet;
 }
 
 export async function updateWallet(userId: string, data: Partial<Wallet>): Promise<Wallet> {
-  const ref = doc(firestore, "wallets", userId);
-  await updateDoc(ref, walletToDoc(data));
-  const snap = await getDoc(ref);
-  return walletFromDoc(snap);
+  const refPath = ref(rtdb, `wallets/${userId}`);
+  await update(refPath, walletToDoc(data));
+  const snapshot = await get(refPath);
+  return walletFromChild(userId, snapshot.val() as Record<string, unknown>);
 }
 
 export async function ensureWallet(userId: string): Promise<Wallet> {
@@ -347,262 +343,190 @@ export async function ensureWallet(userId: string): Promise<Wallet> {
 }
 
 // Counters for numeric IDs
-async function getNextId(counterName: string): Promise<number> {
-  const counterRef = doc(firestore, "counters", counterName);
-  const newId = await runTransaction(firestore, async (transaction) => {
-    const snap = await transaction.get(counterRef);
-    const current = snap.exists() ? toNumber(snap.data().value) : 0;
-    const next = current + 1;
-    transaction.set(counterRef, { value: next });
-    return next;
-  });
-  return newId;
-}
-
 export async function idForNewDocument(counterName: string): Promise<string> {
-  return String(await getNextId(counterName));
+  const counterRef = ref(rtdb, `counters/${counterName}`);
+  const result: TransactionResult = await runTransaction(counterRef, (current) => {
+    if (current === null) return 1;
+    return (current as number) + 1;
+  });
+  const val = result.snapshot.val();
+  if (val === null || val === undefined) {
+    throw new Error(`Counter transaction failed for ${counterName}`);
+  }
+  return String(val);
 }
 
 // Services
 export async function getAllServices(): Promise<Service[]> {
-  const q = query(collection(firestore, "services"), orderBy("platform"), orderBy("name"));
-  const snap = await getDocs(q);
-  return snap.docs.map(serviceFromDoc);
+  const snapshot = await get(ref(rtdb, "services"));
+  const list = snapshotToList(snapshot, serviceFromChild);
+  return list.sort(
+    (a, b) => a.platform.localeCompare(b.platform) || a.name.localeCompare(b.name),
+  );
 }
 
 export async function getActiveServices(): Promise<Service[]> {
-  const q = query(
-    collection(firestore, "services"),
-    where("isActive", "==", true),
-    orderBy("platform"),
-    orderBy("name"),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(serviceFromDoc);
+  return (await getAllServices()).filter((s) => s.isActive);
 }
 
 export async function getActivePlatforms(): Promise<string[]> {
-  const snap = await getDocs(query(collection(firestore, "services"), where("isActive", "==", true)));
-  const platforms = new Set<string>();
-  snap.docs.forEach((d) => platforms.add(d.data().platform as string));
+  const platforms = new Set((await getActiveServices()).map((s) => s.platform));
   return Array.from(platforms).sort();
 }
 
 export async function getServicesByPlatform(platform: string): Promise<Service[]> {
-  const q = query(
-    collection(firestore, "services"),
-    where("isActive", "==", true),
-    where("platform", "==", platform),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(serviceFromDoc);
+  return (await getActiveServices()).filter((s) => s.platform === platform);
 }
 
 export async function getServiceById(id: string): Promise<Service | null> {
-  const ref = doc(firestore, "services", id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return serviceFromDoc(snap);
+  const snapshot = await get(ref(rtdb, `services/${id}`));
+  if (!snapshot.exists()) return null;
+  return serviceFromChild(id, snapshot.val() as Record<string, unknown>);
 }
 
 export async function createService(data: Omit<Service, "id" | "createdAt">): Promise<Service> {
   const id = await idForNewDocument("services");
   const now = new Date();
   const service: Service = { ...data, id, createdAt: now };
-  const ref = doc(firestore, "services", id);
-  await setDoc(ref, serviceToDoc(service));
+  await set(ref(rtdb, `services/${id}`), serviceToDoc(service));
   return service;
 }
 
 export async function updateService(id: string, data: Partial<Service>): Promise<Service> {
-  const ref = doc(firestore, "services", id);
-  await updateDoc(ref, serviceToDoc(data));
-  const snap = await getDoc(ref);
-  return serviceFromDoc(snap);
+  const refPath = ref(rtdb, `services/${id}`);
+  await update(refPath, serviceToDoc(data));
+  const snapshot = await get(refPath);
+  return serviceFromChild(id, snapshot.val() as Record<string, unknown>);
 }
 
 export async function softDeleteService(id: string): Promise<void> {
-  await updateService(id, { isActive: false });
+  await update(ref(rtdb, `services/${id}`), { isActive: false });
 }
 
 // Orders
 export async function getOrderById(id: string): Promise<Order | null> {
-  const ref = doc(firestore, "orders", id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return orderFromDoc(snap);
+  const snapshot = await get(ref(rtdb, `orders/${id}`));
+  if (!snapshot.exists()) return null;
+  return orderFromChild(id, snapshot.val() as Record<string, unknown>);
 }
 
 export async function getOrdersByUser(userId: string): Promise<Order[]> {
-  const q = query(
-    collection(firestore, "orders"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(orderFromDoc);
+  const snapshot = await get(ref(rtdb, "orders"));
+  const list = snapshotToList(snapshot, orderFromChild).filter((o) => o.userId === userId);
+  return list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
-export async function getOrdersByUserAndStatus(userId: string, status: string | null): Promise<Order[]> {
-  let q;
-  if (status === "Completed") {
-    q = query(
-      collection(firestore, "orders"),
-      where("userId", "==", userId),
-      where("status", "==", "Completed"),
-      orderBy("createdAt", "desc"),
-    );
-  } else if (status === "Pending") {
-    q = query(
-      collection(firestore, "orders"),
-      where("userId", "==", userId),
-      where("status", "!=", "Completed"),
-      orderBy("status"),
-      orderBy("createdAt", "desc"),
-    );
-  } else {
-    q = query(
-      collection(firestore, "orders"),
-      where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
-    );
-  }
-  const snap = await getDocs(q);
-  return snap.docs.map(orderFromDoc);
+export async function getOrdersByUserAndStatus(
+  userId: string,
+  status: string | null,
+): Promise<Order[]> {
+  const all = await getOrdersByUser(userId);
+  if (status === "Completed") return all.filter((o) => o.status === "Completed");
+  if (status === "Pending") return all.filter((o) => o.status !== "Completed");
+  return all;
 }
 
 export async function getRecentOrdersByUser(userId: string, limitCount: number): Promise<Order[]> {
-  const q = query(
-    collection(firestore, "orders"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-    limit(limitCount),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(orderFromDoc);
+  return (await getOrdersByUser(userId)).slice(0, limitCount);
 }
 
 export async function getAllOrders(status?: string): Promise<Order[]> {
-  let q;
+  const snapshot = await get(ref(rtdb, "orders"));
+  let list = snapshotToList(snapshot, orderFromChild);
   if (status && status !== "all") {
-    q = query(
-      collection(firestore, "orders"),
-      where("status", "==", status),
-      orderBy("createdAt", "desc"),
-    );
-  } else {
-    q = query(collection(firestore, "orders"), orderBy("createdAt", "desc"));
+    list = list.filter((o) => o.status === status);
   }
-  const snap = await getDocs(q);
-  return snap.docs.map(orderFromDoc);
+  return list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 export async function createOrder(data: Omit<Order, "id" | "createdAt">): Promise<Order> {
   const id = await idForNewDocument("orders");
   const now = new Date();
   const order: Order = { ...data, id, createdAt: now };
-  const ref = doc(firestore, "orders", id);
-  await setDoc(ref, orderToDoc(order));
+  await set(ref(rtdb, `orders/${id}`), orderToDoc(order));
   return order;
 }
 
 export async function updateOrder(id: string, data: Partial<Order>): Promise<Order> {
-  const ref = doc(firestore, "orders", id);
-  await updateDoc(ref, orderToDoc(data));
-  const snap = await getDoc(ref);
-  return orderFromDoc(snap);
+  const refPath = ref(rtdb, `orders/${id}`);
+  await update(refPath, orderToDoc(data));
+  const snapshot = await get(refPath);
+  return orderFromChild(id, snapshot.val() as Record<string, unknown>);
 }
 
 // Topup requests
 export async function getTopupRequestById(id: string): Promise<TopupRequest | null> {
-  const ref = doc(firestore, "topupRequests", id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return topupFromDoc(snap);
+  const snapshot = await get(ref(rtdb, `topupRequests/${id}`));
+  if (!snapshot.exists()) return null;
+  return topupFromChild(id, snapshot.val() as Record<string, unknown>);
 }
 
 export async function getTopupRequestsByUser(userId: string): Promise<TopupRequest[]> {
-  const q = query(
-    collection(firestore, "topupRequests"),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(topupFromDoc);
+  const snapshot = await get(ref(rtdb, "topupRequests"));
+  const list = snapshotToList(snapshot, topupFromChild).filter((t) => t.userId === userId);
+  return list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 export async function getAllTopupRequests(status?: string): Promise<TopupRequest[]> {
-  let q;
+  const snapshot = await get(ref(rtdb, "topupRequests"));
+  let list = snapshotToList(snapshot, topupFromChild);
   if (status && status !== "all") {
-    q = query(
-      collection(firestore, "topupRequests"),
-      where("status", "==", status),
-      orderBy("createdAt", "desc"),
-    );
-  } else {
-    q = query(collection(firestore, "topupRequests"), orderBy("createdAt", "desc"));
+    list = list.filter((t) => t.status === status);
   }
-  const snap = await getDocs(q);
-  return snap.docs.map(topupFromDoc);
+  return list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
-export async function createTopupRequest(data: Omit<TopupRequest, "id" | "createdAt">): Promise<TopupRequest> {
+export async function createTopupRequest(
+  data: Omit<TopupRequest, "id" | "createdAt">,
+): Promise<TopupRequest> {
   const id = await idForNewDocument("topupRequests");
   const now = new Date();
   const topup: TopupRequest = { ...data, id, createdAt: now };
-  const ref = doc(firestore, "topupRequests", id);
-  await setDoc(ref, topupToDoc(topup));
+  await set(ref(rtdb, `topupRequests/${id}`), topupToDoc(topup));
   return topup;
 }
 
-export async function updateTopupRequest(id: string, data: Partial<TopupRequest>): Promise<TopupRequest> {
-  const ref = doc(firestore, "topupRequests", id);
-  await updateDoc(ref, topupToDoc(data));
-  const snap = await getDoc(ref);
-  return topupFromDoc(snap);
+export async function updateTopupRequest(
+  id: string,
+  data: Partial<TopupRequest>,
+): Promise<TopupRequest> {
+  const refPath = ref(rtdb, `topupRequests/${id}`);
+  await update(refPath, topupToDoc(data));
+  const snapshot = await get(refPath);
+  return topupFromChild(id, snapshot.val() as Record<string, unknown>);
 }
 
 // Settings
 export async function getSettings(): Promise<SettingsItem[]> {
-  const snap = await getDocs(collection(firestore, "settings"));
-  return snap.docs.map(settingsFromDoc);
+  const snapshot = await get(ref(rtdb, "settings"));
+  return snapshotToList(snapshot, settingsFromChild);
 }
 
 export async function getSetting(key: string): Promise<string> {
-  const ref = doc(firestore, "settings", key);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return "";
-  return settingsFromDoc(snap).value;
+  const snapshot = await get(ref(rtdb, `settings/${key}`));
+  if (!snapshot.exists()) return "";
+  return settingsFromChild(key, snapshot.val() as Record<string, unknown>).value;
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
-  const ref = doc(firestore, "settings", key);
-  await setDoc(
-    ref,
-    settingsToDoc({ key, value, updatedAt: new Date() }),
-    { merge: true },
-  );
+  await update(ref(rtdb, `settings/${key}`), settingsToDoc({ key, value, updatedAt: new Date() }));
 }
 
 // Sessions
 export async function createSession(session: Session): Promise<void> {
-  const ref = doc(firestore, "sessions", session.sid);
-  await setDoc(ref, sessionToDoc(session));
+  await set(ref(rtdb, `sessions/${session.sid}`), sessionToDoc(session));
 }
 
 export async function getSession(sid: string): Promise<Session | null> {
-  const ref = doc(firestore, "sessions", sid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return sessionFromDoc(snap);
+  const snapshot = await get(ref(rtdb, `sessions/${sid}`));
+  if (!snapshot.exists()) return null;
+  return sessionFromChild(sid, snapshot.val() as Record<string, unknown>);
 }
 
 export async function updateSession(sid: string, data: Partial<Session>): Promise<void> {
-  const ref = doc(firestore, "sessions", sid);
-  await updateDoc(ref, sessionToDoc(data));
+  await update(ref(rtdb, `sessions/${sid}`), sessionToDoc(data));
 }
 
 export async function deleteSession(sid: string): Promise<void> {
-  const ref = doc(firestore, "sessions", sid);
-  await deleteDoc(ref);
+  await remove(ref(rtdb, `sessions/${sid}`));
 }
