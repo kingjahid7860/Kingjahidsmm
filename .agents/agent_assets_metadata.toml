@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "KMbZ6ijUwZsW9AVnJzAdv"
+uri = "file://screenshots/login-page-final.jpg"
+type = "image"
+title = "kingsmmpanel login page (updated brand + WhatsApp support button)"

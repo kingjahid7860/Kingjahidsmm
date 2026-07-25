@@ -10,9 +10,10 @@ export interface Service {
   id: number;
   name: string;
   category: string;
-  description?: string;
+  description: string;
   pricePerThousand: number;
   minQuantity: number;
   maxQuantity: number;
   platform: string;
+  isActive: boolean;
 }

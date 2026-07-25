@@ -795,7 +795,7 @@ export default function Admin() {
         <div className="p-5 border-b border-border flex items-center gap-2">
           <div className="w-8 h-8 rounded bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]">K</div>
           <div>
-            <div className="font-bold text-sm bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">KING SMM</div>
+            <div className="font-bold text-sm bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">kingsmmpanel</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-widest">Admin Panel</div>
           </div>
         </div>

@@ -20,9 +20,11 @@ export const HealthCheckResponse = zod.object({
  * @summary Get current authenticated user
  */
 export const GetMeResponse = zod.object({
-  "id": zod.number(),
-  "username": zod.string(),
-  "email": zod.string(),
+  "id": zod.string(),
+  "email": zod.string().nullable(),
+  "firstName": zod.string().nullable(),
+  "lastName": zod.string().nullable(),
+  "profileImageUrl": zod.string().nullable(),
   "createdAt": zod.coerce.date()
 })
 
@@ -38,11 +40,12 @@ export const ListServicesResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "category": zod.string(),
-  "description": zod.string().optional(),
+  "description": zod.string(),
   "pricePerThousand": zod.number(),
   "minQuantity": zod.number(),
   "maxQuantity": zod.number(),
-  "platform": zod.string()
+  "platform": zod.string(),
+  "isActive": zod.boolean()
 })
 export const ListServicesResponse = zod.array(ListServicesResponseItem)
 
@@ -58,11 +61,12 @@ export const GetServiceResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "category": zod.string(),
-  "description": zod.string().optional(),
+  "description": zod.string(),
   "pricePerThousand": zod.number(),
   "minQuantity": zod.number(),
   "maxQuantity": zod.number(),
-  "platform": zod.string()
+  "platform": zod.string(),
+  "isActive": zod.boolean()
 })
 
 
@@ -363,11 +367,12 @@ export const ListAdminServicesResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "category": zod.string(),
-  "description": zod.string().optional(),
+  "description": zod.string(),
   "pricePerThousand": zod.number(),
   "minQuantity": zod.number(),
   "maxQuantity": zod.number(),
-  "platform": zod.string()
+  "platform": zod.string(),
+  "isActive": zod.boolean()
 })
 export const ListAdminServicesResponse = zod.array(ListAdminServicesResponseItem)
 
@@ -407,11 +412,12 @@ export const UpdateServiceResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "category": zod.string(),
-  "description": zod.string().optional(),
+  "description": zod.string(),
   "pricePerThousand": zod.number(),
   "minQuantity": zod.number(),
   "maxQuantity": zod.number(),
-  "platform": zod.string()
+  "platform": zod.string(),
+  "isActive": zod.boolean()
 })
 
 

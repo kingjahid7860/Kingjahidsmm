@@ -5,6 +5,14 @@ import { Home, List, PlusCircle, History, Wallet, User, LogOut, Menu } from "luc
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421-9.893c-3.037-.013-5.561 2.063-6.213 4.904-.25 1.054-.167 2.124.237 3.115l-1.523 5.556 5.68-1.49c1.023.43 2.143.659 3.272.66h.003c3.037 0 5.561-2.062 6.214-4.904.947-3.985-2.071-7.84-5.88-7.84m-.003 14.32h-.002c-1.006 0-1.996-.274-2.86-.788l-.205-.122-3.032.796.81-2.951-.19-.302a4.968 4.968 0 0 1-.758-2.643c0-3.005 2.445-5.45 5.45-5.45 3.005 0 5.45 2.445 5.45 5.45 0 3.005-2.445 5.45-5.45 5.45"/>
+    </svg>
+  );
+}
+
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/new-order", label: "New Order", icon: PlusCircle },
@@ -54,7 +62,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <header className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white">K</div>
-          <span className="font-bold text-lg tracking-tight">KING SMM</span>
+          <span className="font-bold text-lg tracking-tight">kingsmmpanel</span>
         </div>
         <Sheet>
           <SheetTrigger asChild>
@@ -67,7 +75,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div className="p-6 border-b border-border">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white">K</div>
-                  <span className="font-bold text-lg tracking-tight">KING SMM</span>
+                  <span className="font-bold text-lg tracking-tight">kingsmmpanel</span>
                 </div>
               </div>
               <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -94,7 +102,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]">K</div>
-            <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">KING SMM</span>
+            <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">kingsmmpanel</span>
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -124,6 +132,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+
+      <a
+        href="https://wa.me/918002035977"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white px-4 py-3 rounded-full shadow-lg shadow-green-500/30 transition-all hover:scale-105"
+        aria-label="Chat on WhatsApp"
+      >
+        <WhatsAppIcon className="w-5 h-5" />
+        <span className="text-sm font-medium hidden sm:inline">Support</span>
+      </a>
     </div>
   );
 }

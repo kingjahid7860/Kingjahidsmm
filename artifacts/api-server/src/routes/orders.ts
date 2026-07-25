@@ -70,6 +70,7 @@ router.get("/orders", async (req, res) => {
     req.log.error(err, "Failed to list orders");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.post("/orders", async (req, res) => {
@@ -134,6 +135,7 @@ router.post("/orders", async (req, res) => {
     req.log.error(err, "Failed to create order");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.get("/orders/:id", async (req, res) => {
@@ -165,6 +167,7 @@ router.get("/orders/:id", async (req, res) => {
     req.log.error(err, "Failed to get order");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 export default router;

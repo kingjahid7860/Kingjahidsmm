@@ -17,6 +17,7 @@ router.get("/services/categories", async (req, res) => {
     req.log.error(err, "Failed to list categories");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.get("/services", async (req, res) => {
@@ -40,6 +41,7 @@ router.get("/services", async (req, res) => {
     req.log.error(err, "Failed to list services");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.get("/services/:id", async (req, res) => {
@@ -55,6 +57,7 @@ router.get("/services/:id", async (req, res) => {
     req.log.error(err, "Failed to get service");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 export default router;

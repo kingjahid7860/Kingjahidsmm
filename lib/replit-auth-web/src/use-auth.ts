@@ -7,7 +7,6 @@ export interface AuthUser {
   lastName: string | null;
   profileImageUrl: string | null;
   createdAt: string;
-  updatedAt: string;
 }
 
 interface AuthState {

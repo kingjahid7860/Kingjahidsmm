@@ -568,18 +568,24 @@ components:
       type: object
       properties:
         id:
-          type: integer
-        username:
           type: string
         email:
-          type: string
+          type: ["string", "null"]
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        profileImageUrl:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
       required:
         - id
-        - username
         - email
+        - firstName
+        - lastName
+        - profileImageUrl
         - createdAt
 
     Service:
@@ -601,13 +607,18 @@ components:
           type: integer
         platform:
           type: string
+        isActive:
+          type: boolean
       required:
         - id
         - name
         - category
+        - description
         - pricePerThousand
         - minQuantity
         - maxQuantity
+        - platform
+        - isActive
         - platform
 
     Order:

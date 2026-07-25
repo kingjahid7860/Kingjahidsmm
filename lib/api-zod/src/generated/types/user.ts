@@ -7,8 +7,14 @@
  */
 
 export interface User {
-  id: number;
-  username: string;
-  email: string;
+  id: string;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  firstName: string | null;
+  /** @nullable */
+  lastName: string | null;
+  /** @nullable */
+  profileImageUrl: string | null;
   createdAt: Date;
 }

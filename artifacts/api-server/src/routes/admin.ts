@@ -46,6 +46,7 @@ router.get("/admin/stats", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to get admin stats");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.get("/admin/users", requireAdmin, async (req, res) => {
@@ -83,6 +84,7 @@ router.get("/admin/users", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to list admin users");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.patch("/admin/users/:id/balance", requireAdmin, async (req, res) => {
@@ -107,6 +109,7 @@ router.patch("/admin/users/:id/balance", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to update user balance");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.get("/admin/orders", requireAdmin, async (req, res) => {
@@ -157,6 +160,7 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to list admin orders");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.patch("/admin/orders/:id/status", requireAdmin, async (req, res) => {
@@ -204,6 +208,7 @@ router.patch("/admin/orders/:id/status", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to update order status");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.get("/admin/topups", requireAdmin, async (req, res) => {
@@ -248,6 +253,7 @@ router.get("/admin/topups", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to list admin topups");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.patch("/admin/topups/:id", requireAdmin, async (req, res) => {
@@ -295,6 +301,7 @@ router.patch("/admin/topups/:id", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to update topup status");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.get("/admin/services", requireAdmin, async (req, res) => {
@@ -305,6 +312,7 @@ router.get("/admin/services", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to list admin services");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.get("/admin/api-settings", requireAdmin, async (req, res) => {
@@ -320,6 +328,7 @@ router.get("/admin/api-settings", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to get API settings");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.put("/admin/api-settings", requireAdmin, async (req, res) => {
@@ -336,6 +345,7 @@ router.put("/admin/api-settings", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to update API settings");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.get("/admin/settings", requireAdmin, async (req, res) => {
@@ -350,6 +360,7 @@ router.get("/admin/settings", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to get payment settings");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.put("/admin/settings", requireAdmin, async (req, res) => {
@@ -372,6 +383,7 @@ router.put("/admin/settings", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to update payment settings");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.post("/admin/services", requireAdmin, async (req, res) => {
@@ -398,6 +410,7 @@ router.post("/admin/services", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to create service");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.patch("/admin/services/:id", requireAdmin, async (req, res) => {
@@ -423,6 +436,7 @@ router.patch("/admin/services/:id", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to update service");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.delete("/admin/services/:id", requireAdmin, async (req, res) => {
@@ -434,6 +448,7 @@ router.delete("/admin/services/:id", requireAdmin, async (req, res) => {
     req.log.error(err, "Failed to delete service");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 export default router;

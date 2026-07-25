@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, IndianRupee } from "lucide-react";
 
 const formSchema = z.object({
   serviceId: z.coerce.number().min(1, "Please select a service"),
@@ -85,7 +85,7 @@ export default function NewOrder() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Service</FormLabel>
-                    <Select disabled={servicesLoading} onValueChange={field.onChange} value={field.value ? field.value.toString() : ""}>
+                    <Select disabled={servicesLoading} onValueChange={(v) => field.onChange(Number(v))} value={field.value ? field.value.toString() : ""}>
                       <FormControl>
                         <SelectTrigger className="bg-background/50 border-white/10 h-12">
                           <SelectValue placeholder="Select a service" />
@@ -141,6 +141,18 @@ export default function NewOrder() {
                   </FormItem>
                 )}
               />
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Charge</label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    readOnly
+                    value={selectedService ? `₹${charge.toFixed(2)}` : "Select a service first"}
+                    className="bg-background/50 border-white/10 h-12 pl-10 font-mono"
+                  />
+                </div>
+              </div>
 
               <div className="pt-4 border-t border-white/10 flex items-center justify-between">
                 <div>

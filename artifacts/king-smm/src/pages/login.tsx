@@ -24,8 +24,8 @@ export default function Login() {
         <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white text-3xl shadow-[0_0_30px_rgba(236,72,153,0.5)] mb-6">
           K
         </div>
-        <h1 className="text-4xl font-bold mb-2 tracking-tight">KING SMM</h1>
-        <p className="text-muted-foreground mb-8">The premium trading platform for social media growth.</p>
+        <h1 className="text-4xl font-bold mb-2 tracking-tight">kingsmmpanel</h1>
+        <p className="text-muted-foreground mb-8">The premium SMM panel for social media growth.</p>
         
         <Button 
           size="lg" 

@@ -10,9 +10,15 @@ export interface HealthStatus {
 }
 
 export interface User {
-  id: number;
-  username: string;
-  email: string;
+  id: string;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  firstName: string | null;
+  /** @nullable */
+  lastName: string | null;
+  /** @nullable */
+  profileImageUrl: string | null;
   createdAt: string;
 }
 
@@ -20,11 +26,12 @@ export interface Service {
   id: number;
   name: string;
   category: string;
-  description?: string;
+  description: string;
   pricePerThousand: number;
   minQuantity: number;
   maxQuantity: number;
   platform: string;
+  isActive: boolean;
 }
 
 export interface Order {

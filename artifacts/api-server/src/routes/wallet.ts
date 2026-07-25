@@ -32,6 +32,7 @@ router.get("/wallet", async (req, res) => {
     req.log.error(err, "Failed to get wallet");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.post("/wallet/topup", async (req, res) => {
@@ -60,6 +61,7 @@ router.post("/wallet/topup", async (req, res) => {
     req.log.error(err, "Failed to create topup");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 router.get("/wallet/topups", async (req, res) => {
@@ -75,6 +77,7 @@ router.get("/wallet/topups", async (req, res) => {
     req.log.error(err, "Failed to list topups");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 export { ensureWallet };

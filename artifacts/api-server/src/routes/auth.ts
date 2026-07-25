@@ -62,13 +62,14 @@ async function upsertUser(claims: Record<string, unknown>) {
       | null,
   };
 
+  const { id, ...updateData } = userData;
   const [user] = await db
     .insert(usersTable)
     .values(userData)
     .onConflictDoUpdate({
       target: usersTable.id,
       set: {
-        ...userData,
+        ...updateData,
         updatedAt: new Date(),
       },
     })
@@ -166,6 +167,7 @@ router.get("/callback", async (req: Request, res: Response) => {
       firstName: dbUser.firstName,
       lastName: dbUser.lastName,
       profileImageUrl: dbUser.profileImageUrl,
+      createdAt: dbUser.createdAt,
     },
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
@@ -234,6 +236,7 @@ router.post(
           firstName: dbUser.firstName,
           lastName: dbUser.lastName,
           profileImageUrl: dbUser.profileImageUrl,
+          createdAt: dbUser.createdAt,
         },
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,

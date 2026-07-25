@@ -56,6 +56,7 @@ router.get("/dashboard/stats", async (req, res) => {
     req.log.error(err, "Failed to get dashboard stats");
     res.status(500).json({ error: "Internal server error" });
   }
+  return;
 });
 
 export default router;
