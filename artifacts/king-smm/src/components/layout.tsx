@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useFirebaseAuth } from "@/hooks/use-firebase-auth";
 import { Home, List, PlusCircle, History, Wallet, User, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -23,18 +23,21 @@ const NAV_ITEMS = [
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, login, logout, user } = useAuth();
-  const [location] = useLocation();
+  const { isAuthenticated, isLoading, user, logout } = useFirebaseAuth();
+  const [location, setLocation] = useLocation();
 
   React.useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      login();
+      setLocation("/");
     }
-  }, [isLoading, isAuthenticated, login]);
+  }, [isLoading, isAuthenticated, setLocation]);
 
   if (isLoading || !isAuthenticated) {
     return <div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>;
   }
+
+  const displayName = user?.displayName || user?.email || "User";
+  const initial = displayName[0]?.toUpperCase() ?? "U";
 
   const NavLinks = () => (
     <>
@@ -66,9 +69,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Menu className="w-6 h-6" />
-            </Button>
+            <Button variant="ghost" size="icon"><Menu className="w-6 h-6" /></Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0 bg-card border-r-border">
             <div className="flex flex-col h-full">
@@ -78,15 +79,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <span className="font-bold text-lg tracking-tight">kingsmmpanel</span>
                 </div>
               </div>
-              <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                <NavLinks />
-              </nav>
+              <nav className="flex-1 p-4 space-y-1 overflow-y-auto"><NavLinks /></nav>
               <div className="p-4 border-t border-border">
                 <div className="flex items-center gap-3 mb-4 px-2 text-sm">
-                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center font-bold text-primary">
-                    {(user?.firstName || user?.email || "U")[0]?.toUpperCase()}
-                  </div>
-                  <span className="truncate">{user?.firstName || user?.email}</span>
+                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center font-bold text-primary">{initial}</div>
+                  <span className="truncate">{displayName}</span>
                 </div>
                 <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={logout}>
                   <LogOut className="w-4 h-4 mr-2" /> Logout
@@ -105,16 +102,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">kingsmmpanel</span>
           </div>
         </div>
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <NavLinks />
-        </nav>
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto"><NavLinks /></nav>
         <div className="p-4 border-t border-border">
           <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center font-bold text-primary border border-primary/30">
-              {(user?.firstName || user?.email || "U")[0]?.toUpperCase()}
-            </div>
+            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center font-bold text-primary border border-primary/30">{initial}</div>
             <div className="overflow-hidden flex-1">
-              <p className="text-sm font-medium truncate">{user?.firstName || user?.email}</p>
+              <p className="text-sm font-medium truncate">{displayName}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
             </div>
           </div>
@@ -126,11 +119,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative">
-        {/* Glow effect background */}
         <div className="absolute top-0 left-0 w-full h-96 bg-primary/5 blur-[120px] pointer-events-none" />
-        <div className="relative z-10 p-6 md:p-8 max-w-7xl mx-auto">
-          {children}
-        </div>
+        <div className="relative z-10 p-6 md:p-8 max-w-7xl mx-auto">{children}</div>
       </main>
 
       <a

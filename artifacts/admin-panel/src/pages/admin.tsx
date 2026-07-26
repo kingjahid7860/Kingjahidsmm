@@ -1,5 +1,7 @@
-import React, { useState } from "react";
-import { useAuth } from "@workspace/replit-auth-web";
+import React, { useState, useRef, useEffect } from "react";
+import { useFirebaseAuth } from "@/hooks/use-firebase-auth";
+import { ref as dbRef, onValue, push, remove } from "firebase/database";
+import { rtdb, type FeedItem } from "@/lib/firebase";
 import {
   useGetAdminStats,
   useListAdminUsers,
@@ -31,31 +33,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { Users, ShoppingCart, Wallet, Clock, Settings, ChevronLeft, ChevronRight, Shield, Edit2, Check, X, Plus, Trash2, Link, Key, ToggleLeft } from "lucide-react";
+import {
+  Users, ShoppingCart, Wallet, Clock, Settings, ChevronLeft, ChevronRight,
+  Shield, Edit2, Check, X, Plus, Trash2, Link, Key, ToggleLeft, Radio,
+  Send, ImagePlus, Video, Loader2, LogOut,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const ADMIN_USER_ID = "61264607";
+// ─── Constants ───────────────────────────────────────────────────────────────
+
 const ADMIN_EMAIL = "kingjahid0786@gmail.com";
 
-type Tab = "dashboard" | "users" | "orders" | "topups" | "services" | "api" | "settings";
+type Tab = "dashboard" | "users" | "orders" | "topups" | "services" | "api" | "settings" | "broadcast";
 
 function formatDate(d: string | Date) {
   return new Date(d).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
 }
+
+// ─── Shared components ───────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
@@ -66,11 +67,7 @@ function StatusBadge({ status }: { status: string }) {
     Cancelled: "text-red-400 border-red-400/30 bg-red-400/10",
     Rejected: "text-red-400 border-red-400/30 bg-red-400/10",
   };
-  return (
-    <Badge variant="outline" className={colorMap[status] ?? ""}>
-      {status}
-    </Badge>
-  );
+  return <Badge variant="outline" className={colorMap[status] ?? ""}>{status}</Badge>;
 }
 
 function Pagination({ page, totalPages, onPage }: { page: number; totalPages: number; onPage: (p: number) => void }) {
@@ -84,9 +81,7 @@ function Pagination({ page, totalPages, onPage }: { page: number; totalPages: nu
         const p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page + i - 3;
         if (p < 1 || p > totalPages) return null;
         return (
-          <Button key={p} variant={p === page ? "default" : "ghost"} size="sm" onClick={() => onPage(p)}>
-            {p}
-          </Button>
+          <Button key={p} variant={p === page ? "default" : "ghost"} size="sm" onClick={() => onPage(p)}>{p}</Button>
         );
       })}
       <Button variant="ghost" size="icon" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>
@@ -96,11 +91,13 @@ function Pagination({ page, totalPages, onPage }: { page: number; totalPages: nu
   );
 }
 
+// ─── Tab: Dashboard ──────────────────────────────────────────────────────────
+
 function DashboardTab() {
   const { data: stats, isLoading } = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey() } });
   const cards = [
     { title: "Total Users", value: stats?.totalUsers ?? 0, icon: Users, color: "text-primary" },
-    { title: "Total Balance", value: `\u20B9${(stats?.totalBalance ?? 0).toFixed(2)}`, icon: Wallet, color: "text-green-400" },
+    { title: "Total Balance", value: `₹${(stats?.totalBalance ?? 0).toFixed(2)}`, icon: Wallet, color: "text-green-400" },
     { title: "Total Orders", value: stats?.totalOrders ?? 0, icon: ShoppingCart, color: "text-blue-400" },
     { title: "Pending Top-ups", value: stats?.pendingTopups ?? 0, icon: Clock, color: "text-amber-400" },
   ];
@@ -110,14 +107,12 @@ function DashboardTab() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((c, i) => (
           <Card key={i} className="bg-card/50 border-white/5 backdrop-blur relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <c.icon className="w-16 h-16" />
-            </div>
+            <div className="absolute top-0 right-0 p-4 opacity-10"><c.icon className="w-16 h-16" /></div>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">{c.title}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-3xl font-bold ${c.color}`}>{isLoading ? "\u2014" : c.value}</div>
+              <div className={`text-3xl font-bold ${c.color}`}>{isLoading ? "—" : c.value}</div>
             </CardContent>
           </Card>
         ))}
@@ -125,6 +120,8 @@ function DashboardTab() {
     </div>
   );
 }
+
+// ─── Tab: Users ──────────────────────────────────────────────────────────────
 
 function UsersTab() {
   const { data: users, isLoading } = useListAdminUsers({ query: { queryKey: getListAdminUsersQueryKey() } });
@@ -170,26 +167,17 @@ function UsersTab() {
                 <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No users yet.</TableCell></TableRow>
               ) : users?.map((u) => (
                 <TableRow key={u.id} className="border-border">
-                  <TableCell className="text-sm">{u.email ?? "\u2014"}</TableCell>
-                  <TableCell className="text-sm">{[u.firstName, u.lastName].filter(Boolean).join(" ") || "\u2014"}</TableCell>
+                  <TableCell className="text-sm">{u.email ?? "—"}</TableCell>
+                  <TableCell className="text-sm">{[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}</TableCell>
                   <TableCell>
                     {editId === u.id ? (
                       <div className="flex items-center gap-1">
-                        <Input
-                          value={balanceInput}
-                          onChange={(e) => setBalanceInput(e.target.value)}
-                          className="w-24 h-7 text-sm"
-                          autoFocus
-                        />
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-green-400" onClick={() => handleSave(u.id)}>
-                          <Check className="w-4 h-4" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-red-400" onClick={() => setEditId(null)}>
-                          <X className="w-4 h-4" />
-                        </Button>
+                        <Input value={balanceInput} onChange={(e) => setBalanceInput(e.target.value)} className="w-24 h-7 text-sm" autoFocus />
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-green-400" onClick={() => handleSave(u.id)}><Check className="w-4 h-4" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-red-400" onClick={() => setEditId(null)}><X className="w-4 h-4" /></Button>
                       </div>
                     ) : (
-                      <span className="font-medium text-green-400">\u20B9{u.balance.toFixed(2)}</span>
+                      <span className="font-medium text-green-400">₹{u.balance.toFixed(2)}</span>
                     )}
                   </TableCell>
                   <TableCell>{u.totalOrders}</TableCell>
@@ -208,6 +196,8 @@ function UsersTab() {
     </div>
   );
 }
+
+// ─── Tab: Orders ─────────────────────────────────────────────────────────────
 
 function OrdersTab() {
   const [page, setPage] = useState(1);
@@ -236,9 +226,7 @@ function OrdersTab() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold">All Orders ({data?.total ?? 0})</h2>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-          <SelectTrigger className="w-36 bg-card/50 border-white/10">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-36 bg-card/50 border-white/10"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
             <SelectItem value="Pending">Pending</SelectItem>
@@ -253,14 +241,9 @@ function OrdersTab() {
           <Table>
             <TableHeader>
               <TableRow className="border-border">
-                <TableHead>ID</TableHead>
-                <TableHead>User</TableHead>
-                <TableHead>Service</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Charge</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead>ID</TableHead><TableHead>User</TableHead><TableHead>Service</TableHead>
+                <TableHead>Qty</TableHead><TableHead>Charge</TableHead><TableHead>Date</TableHead>
+                <TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -271,17 +254,15 @@ function OrdersTab() {
               ) : data?.orders.map((o) => (
                 <TableRow key={o.id} className="border-border">
                   <TableCell className="font-mono text-muted-foreground">#{o.id}</TableCell>
-                  <TableCell className="text-sm max-w-[120px] truncate">{o.userEmail ?? o.userId.slice(0, 8)}</TableCell>
+                  <TableCell className="text-sm max-w-[120px] truncate">{o.userEmail ?? String(o.userId).slice(0, 8)}</TableCell>
                   <TableCell className="text-sm max-w-[140px] truncate">{o.serviceName}</TableCell>
                   <TableCell>{o.quantity.toLocaleString()}</TableCell>
-                  <TableCell className="text-primary font-medium">\u20B9{o.charge.toFixed(2)}</TableCell>
+                  <TableCell className="text-primary font-medium">₹{o.charge.toFixed(2)}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{formatDate(o.createdAt)}</TableCell>
                   <TableCell><StatusBadge status={o.status} /></TableCell>
                   <TableCell className="text-right">
                     <Select value={o.status} onValueChange={(v) => handleStatusChange(o.id, v)}>
-                      <SelectTrigger className="w-32 h-7 text-xs bg-card border-white/10">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="w-32 h-7 text-xs bg-card border-white/10"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Pending">Pending</SelectItem>
                         <SelectItem value="Processing">Processing</SelectItem>
@@ -301,6 +282,8 @@ function OrdersTab() {
   );
 }
 
+// ─── Tab: Topups ─────────────────────────────────────────────────────────────
+
 function TopupsTab() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -318,7 +301,7 @@ function TopupsTab() {
       await updateStatus({ id, data: { status } });
       await qc.invalidateQueries({ queryKey: getListAdminTopupsQueryKey() });
       await qc.invalidateQueries({ queryKey: getGetAdminStatsQueryKey() });
-      toast({ title: status === "Approved" ? "Top-up approved \u2014 balance added to user wallet" : "Top-up rejected" });
+      toast({ title: status === "Approved" ? "Top-up approved — balance added" : "Top-up rejected" });
     } catch {
       toast({ title: "Failed to update topup", variant: "destructive" });
     }
@@ -329,9 +312,7 @@ function TopupsTab() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold">Top-up Requests ({data?.total ?? 0})</h2>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-          <SelectTrigger className="w-36 bg-card/50 border-white/10">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="w-36 bg-card/50 border-white/10"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
             <SelectItem value="Pending">Pending</SelectItem>
@@ -345,13 +326,9 @@ function TopupsTab() {
           <Table>
             <TableHeader>
               <TableRow className="border-border">
-                <TableHead>ID</TableHead>
-                <TableHead>User</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Transaction ID</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>ID</TableHead><TableHead>User</TableHead><TableHead>Amount</TableHead>
+                <TableHead>Transaction ID</TableHead><TableHead>Date</TableHead>
+                <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -362,26 +339,22 @@ function TopupsTab() {
               ) : data?.topups.map((t) => (
                 <TableRow key={t.id} className="border-border">
                   <TableCell className="font-mono text-muted-foreground">#{t.id}</TableCell>
-                  <TableCell className="text-sm max-w-[120px] truncate">{t.userEmail ?? t.userId.slice(0, 8)}</TableCell>
-                  <TableCell className="font-bold text-green-400">\u20B9{t.amount.toFixed(2)}</TableCell>
+                  <TableCell className="text-sm max-w-[120px] truncate">{t.userEmail ?? String(t.userId).slice(0, 8)}</TableCell>
+                  <TableCell className="font-bold text-green-400">₹{t.amount.toFixed(2)}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground max-w-[140px] truncate">{t.transactionId}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{formatDate(t.createdAt)}</TableCell>
                   <TableCell><StatusBadge status={t.status} /></TableCell>
                   <TableCell className="text-right">
                     {t.status === "Pending" ? (
                       <div className="flex gap-1 justify-end">
-                        <Button size="sm" variant="ghost" className="text-green-400 hover:text-green-300 hover:bg-green-400/10 h-7 px-2"
-                          onClick={() => handleAction(t.id, "Approved")}>
+                        <Button size="sm" variant="ghost" className="text-green-400 hover:text-green-300 hover:bg-green-400/10 h-7 px-2" onClick={() => handleAction(t.id, "Approved")}>
                           <Check className="w-3 h-3 mr-1" /> Approve
                         </Button>
-                        <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10 h-7 px-2"
-                          onClick={() => handleAction(t.id, "Rejected")}>
+                        <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10 h-7 px-2" onClick={() => handleAction(t.id, "Rejected")}>
                           <X className="w-3 h-3 mr-1" /> Reject
                         </Button>
                       </div>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">\u2014</span>
-                    )}
+                    ) : <span className="text-muted-foreground text-xs">—</span>}
                   </TableCell>
                 </TableRow>
               ))}
@@ -394,8 +367,9 @@ function TopupsTab() {
   );
 }
 
-const PLATFORMS = ["Instagram", "YouTube", "Facebook", "Twitter/X", "TikTok", "Telegram", "Other"];
+// ─── Tab: Services ───────────────────────────────────────────────────────────
 
+const PLATFORMS = ["Instagram", "YouTube", "Facebook", "Twitter/X", "TikTok", "Telegram", "Other"];
 const emptyService = { name: "", category: "", platform: "Instagram", description: "", pricePerThousand: 0, minQuantity: 100, maxQuantity: 100000 };
 
 function ServicesTab() {
@@ -405,7 +379,6 @@ function ServicesTab() {
   const { mutateAsync: deleteService } = useDeleteService();
   const qc = useQueryClient();
   const { toast } = useToast();
-
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...emptyService });
@@ -423,13 +396,9 @@ function ServicesTab() {
     }
     try {
       if (editId !== null) {
-        await updateService({ id: editId, data });
-        toast({ title: "Service updated" });
-        setEditId(null);
+        await updateService({ id: editId, data }); toast({ title: "Service updated" }); setEditId(null);
       } else {
-        await createService({ data });
-        toast({ title: "Service added" });
-        setShowAdd(false);
+        await createService({ data }); toast({ title: "Service added" }); setShowAdd(false);
       }
       await qc.invalidateQueries({ queryKey: getListAdminServicesQueryKey() });
     } catch {
@@ -470,8 +439,8 @@ function ServicesTab() {
           <Input value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Short description" className="bg-background/50" />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Price per 1000 (\u20B9) *</label>
-          <Input type="number" value={form.pricePerThousand} onChange={(e) => setForm(f => ({ ...f, pricePerThousand: Number(e.target.value) }))} placeholder="e.g. 50" className="bg-background/50" />
+          <label className="text-xs font-medium text-muted-foreground">Price per 1000 (₹) *</label>
+          <Input type="number" value={form.pricePerThousand} onChange={(e) => setForm(f => ({ ...f, pricePerThousand: Number(e.target.value) }))} className="bg-background/50" />
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Min Quantity</label>
@@ -504,40 +473,33 @@ function ServicesTab() {
           </DialogContent>
         </Dialog>
       </div>
-
       <Dialog open={editId !== null} onOpenChange={(open) => { if (!open) setEditId(null); }}>
         <DialogContent className="bg-card border-white/10 max-w-md">
           <DialogHeader><DialogTitle>Edit Service</DialogTitle></DialogHeader>
           <ServiceForm />
         </DialogContent>
       </Dialog>
-
       <Card className="bg-card/50 border-white/5 backdrop-blur">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-border">
-                <TableHead>Name</TableHead>
-                <TableHead>Platform</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Price/1000</TableHead>
-                <TableHead>Min</TableHead>
-                <TableHead>Max</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>Name</TableHead><TableHead>Platform</TableHead><TableHead>Category</TableHead>
+                <TableHead>Price/1000</TableHead><TableHead>Min</TableHead><TableHead>Max</TableHead>
+                <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
               ) : services?.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No services yet. Add one above.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No services yet.</TableCell></TableRow>
               ) : services?.map((s) => (
                 <TableRow key={s.id} className="border-border">
                   <TableCell className="font-medium max-w-[160px] truncate">{s.name}</TableCell>
                   <TableCell className="text-sm">{s.platform}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{s.category}</TableCell>
-                  <TableCell className="text-primary font-medium">\u20B9{Number(s.pricePerThousand).toFixed(2)}</TableCell>
+                  <TableCell className="text-primary font-medium">₹{Number(s.pricePerThousand).toFixed(2)}</TableCell>
                   <TableCell className="text-sm">{s.minQuantity.toLocaleString()}</TableCell>
                   <TableCell className="text-sm">{s.maxQuantity.toLocaleString()}</TableCell>
                   <TableCell>
@@ -547,9 +509,7 @@ function ServicesTab() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">
-                      <Button size="sm" variant="ghost" onClick={() => openEdit(s)}>
-                        <Edit2 className="w-3 h-3 mr-1" /> Edit
-                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(s)}><Edit2 className="w-3 h-3 mr-1" /> Edit</Button>
                       {s.isActive && (
                         <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={() => handleDelete(s.id)}>
                           <Trash2 className="w-3 h-3 mr-1" /> Disable
@@ -567,6 +527,8 @@ function ServicesTab() {
   );
 }
 
+// ─── Tab: API ────────────────────────────────────────────────────────────────
+
 function ApiTab() {
   const { data: settings, isLoading } = useGetApiSettings({ query: { queryKey: getGetApiSettingsQueryKey() } });
   const { mutateAsync: save } = useUpdateApiSettings();
@@ -578,11 +540,7 @@ function ApiTab() {
   const [showKey, setShowKey] = useState(false);
 
   React.useEffect(() => {
-    if (settings) {
-      setApiUrl(settings.apiUrl);
-      setApiKey(settings.apiKey);
-      setIsEnabled(settings.isEnabled);
-    }
+    if (settings) { setApiUrl(settings.apiUrl); setApiKey(settings.apiKey); setIsEnabled(settings.isEnabled); }
   }, [settings]);
 
   async function handleSave() {
@@ -599,16 +557,10 @@ function ApiTab() {
     <div className="space-y-6 max-w-xl">
       <div>
         <h2 className="text-2xl font-bold">External SMM API</h2>
-        <p className="text-muted-foreground text-sm mt-1">Connect to any SMM panel API to source services. Supports standard SMM panel API format.</p>
+        <p className="text-muted-foreground text-sm mt-1">Connect to any SMM panel API.</p>
       </div>
-
       <Card className="bg-card/50 border-white/5 backdrop-blur">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Link className="w-4 h-4 text-primary" />
-            API Connection
-          </CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Link className="w-4 h-4 text-primary" /> API Connection</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-3 rounded-lg bg-background/40 border border-white/5">
             <div>
@@ -617,73 +569,27 @@ function ApiTab() {
             </div>
             <Switch checked={isEnabled} onCheckedChange={setIsEnabled} disabled={isLoading} />
           </div>
-
           <div className="space-y-1">
-            <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <Link className="w-3 h-3" /> API URL
-            </label>
-            <Input
-              value={apiUrl}
-              onChange={(e) => setApiUrl(e.target.value)}
-              placeholder="https://yourpanel.com/api/v2"
-              className="bg-background/50"
-              disabled={isLoading}
-            />
-            <p className="text-xs text-muted-foreground">Must support standard SMM panel API v2 format</p>
+            <label className="text-sm font-medium text-muted-foreground flex items-center gap-1"><Link className="w-3 h-3" /> API URL</label>
+            <Input value={apiUrl} onChange={(e) => setApiUrl(e.target.value)} placeholder="https://yourpanel.com/api/v2" className="bg-background/50" disabled={isLoading} />
           </div>
-
           <div className="space-y-1">
-            <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <Key className="w-3 h-3" /> API Key
-            </label>
+            <label className="text-sm font-medium text-muted-foreground flex items-center gap-1"><Key className="w-3 h-3" /> API Key</label>
             <div className="relative">
-              <Input
-                type={showKey ? "text" : "password"}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Your API key from the panel"
-                className="bg-background/50 pr-16"
-                disabled={isLoading}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 text-xs text-muted-foreground"
-                onClick={() => setShowKey((v) => !v)}
-              >
+              <Input type={showKey ? "text" : "password"} value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Your API key" className="bg-background/50 pr-16" disabled={isLoading} />
+              <Button type="button" variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 text-xs text-muted-foreground" onClick={() => setShowKey(v => !v)}>
                 {showKey ? "Hide" : "Show"}
               </Button>
             </div>
           </div>
-
-          {apiUrl && (
-            <div className="p-3 rounded-lg bg-background/40 border border-white/5 text-xs space-y-1">
-              <p className="font-medium text-muted-foreground">API Endpoint Preview</p>
-              <p className="font-mono text-primary break-all">{apiUrl}?action=services&key=***</p>
-            </div>
-          )}
-
-          <Button onClick={handleSave} className="bg-gradient-to-r from-primary to-accent text-white w-full" disabled={isLoading}>
-            Save API Settings
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-card/50 border-white/5 backdrop-blur">
-        <CardHeader>
-          <CardTitle className="text-base text-muted-foreground">How it works</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p>1. Enter your SMM panel API URL and key above</p>
-          <p>2. Enable the integration toggle</p>
-          <p>3. When customers place orders on your panel, they will be forwarded to this API automatically</p>
-          <p>4. Supported panels: SMMKing, JustAnotherPanel, and any panel with standard v2 API</p>
+          <Button onClick={handleSave} className="bg-gradient-to-r from-primary to-accent text-white w-full" disabled={isLoading}>Save API Settings</Button>
         </CardContent>
       </Card>
     </div>
   );
 }
+
+// ─── Tab: Settings ───────────────────────────────────────────────────────────
 
 function SettingsTab() {
   const { data: settings, isLoading } = useGetPaymentSettings({ query: { queryKey: getGetPaymentSettingsQueryKey() } });
@@ -694,10 +600,7 @@ function SettingsTab() {
   const [qrUrl, setQrUrl] = useState("");
 
   React.useEffect(() => {
-    if (settings) {
-      setUpiId(settings.upiId);
-      setQrUrl(settings.qrUrl);
-    }
+    if (settings) { setUpiId(settings.upiId); setQrUrl(settings.qrUrl); }
   }, [settings]);
 
   async function handleSave() {
@@ -714,66 +617,355 @@ function SettingsTab() {
     <div className="space-y-6 max-w-xl">
       <h2 className="text-2xl font-bold">Payment Settings</h2>
       <Card className="bg-card/50 border-white/5 backdrop-blur">
-        <CardHeader><CardTitle className="text-base">UPI &amp; QR Configuration</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">UPI & QR Configuration</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <label className="text-sm font-medium text-muted-foreground">UPI ID</label>
-            <Input
-              value={upiId}
-              onChange={(e) => setUpiId(e.target.value)}
-              placeholder="yourupi@bank"
-              className="bg-background/50"
-              disabled={isLoading}
-            />
+            <Input value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="yourupi@bank" className="bg-background/50" disabled={isLoading} />
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-muted-foreground">QR Code URL</label>
-            <Input
-              value={qrUrl}
-              onChange={(e) => setQrUrl(e.target.value)}
-              placeholder="https://..."
-              className="bg-background/50"
-              disabled={isLoading}
-            />
-            <p className="text-xs text-muted-foreground">Paste a direct image URL for the QR code that users will scan</p>
+            <Input value={qrUrl} onChange={(e) => setQrUrl(e.target.value)} placeholder="https://..." className="bg-background/50" disabled={isLoading} />
+            <p className="text-xs text-muted-foreground">Paste a direct image URL for the QR code</p>
           </div>
           {qrUrl && (
             <div className="p-3 rounded-lg bg-background/40 inline-block">
               <img src={qrUrl} alt="QR Code" className="w-32 h-32 object-contain rounded" />
             </div>
           )}
-          <Button onClick={handleSave} className="bg-gradient-to-r from-primary to-accent text-white">
-            Save Changes
-          </Button>
+          <Button onClick={handleSave} className="bg-gradient-to-r from-primary to-accent text-white">Save Changes</Button>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-export default function Admin() {
-  const { user, isLoading, isAuthenticated } = useAuth();
-  const [tab, setTab] = useState<Tab>("dashboard");
+// ─── Tab: Broadcasting ───────────────────────────────────────────────────────
 
-  React.useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      const returnTo = window.location.origin + window.location.pathname;
-      window.location.href = `/api/login?returnTo=${encodeURIComponent(returnTo)}`;
+function BroadcastTab({ adminEmail }: { adminEmail: string }) {
+  const { toast } = useToast();
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
+  const [text, setText] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [imagePreviewName, setImagePreviewName] = useState("");
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [showVideoInput, setShowVideoInput] = useState(false);
+  const [sending, setSending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const feedEndRef = useRef<HTMLDivElement>(null);
+  const plusMenuRef = useRef<HTMLDivElement>(null);
+
+  // Real-time listener
+  useEffect(() => {
+    const feedRef = dbRef(rtdb, "dashboard_feed");
+    const unsub = onValue(feedRef, (snap) => {
+      if (!snap.exists()) { setFeedItems([]); return; }
+      const items: FeedItem[] = [];
+      snap.forEach((child) => {
+        items.push({ id: child.key!, ...(child.val() as Omit<FeedItem, "id">) });
+        return false;
+      });
+      items.sort((a, b) => a.timestamp - b.timestamp);
+      setFeedItems(items);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    feedEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [feedItems]);
+
+  // Close plus menu on outside click
+  useEffect(() => {
+    if (!showPlusMenu) return;
+    function handler(e: MouseEvent) {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node)) setShowPlusMenu(false);
     }
-  }, [isLoading, isAuthenticated]);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showPlusMenu]);
 
-  if (isLoading || !isAuthenticated) {
-    return <div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>;
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Image too large", description: "Please choose an image under 2MB.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageBase64(reader.result as string);
+      setImagePreviewName(file.name);
+    };
+    reader.readAsDataURL(file);
+    setShowPlusMenu(false);
   }
 
-  const isAdmin = user?.id === ADMIN_USER_ID || user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  async function handleSend() {
+    if (!text.trim() && !videoUrl.trim() && !imageBase64) return;
+    setSending(true);
+    try {
+      const item: Omit<FeedItem, "id"> = {
+        timestamp: Date.now(),
+        adminEmail,
+        ...(text.trim() && { text: text.trim() }),
+        ...(videoUrl.trim() && { videoUrl: videoUrl.trim() }),
+        ...(imageBase64 && { imageBase64 }),
+      };
+      await push(dbRef(rtdb, "dashboard_feed"), item);
+      setText("");
+      setVideoUrl("");
+      setImageBase64(null);
+      setImagePreviewName("");
+      setShowVideoInput(false);
+    } catch {
+      toast({ title: "Failed to send broadcast", variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await remove(dbRef(rtdb, `dashboard_feed/${id}`));
+      toast({ title: "Message deleted" });
+    } catch {
+      toast({ title: "Failed to delete message", variant: "destructive" });
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  }
+
+  const canSend = (text.trim() || videoUrl.trim() || imageBase64) && !sending;
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-140px)] min-h-[500px]">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Radio className="w-5 h-5 text-primary" /> Broadcasting
+          </h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Messages appear live on the User Dashboard.</p>
+        </div>
+        <span className="text-xs text-muted-foreground px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
+          {feedItems.length} broadcasts
+        </span>
+      </div>
+
+      {/* Feed scroll area */}
+      <div className="flex-1 overflow-y-auto space-y-3 pb-4 pr-1 min-h-0">
+        {feedItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+            <Radio className="w-10 h-10 opacity-20" />
+            <p className="text-sm">No broadcasts yet. Start by typing a message below.</p>
+          </div>
+        ) : feedItems.map((item) => (
+          <div key={item.id} className="group flex gap-2 justify-end">
+            <div className="max-w-[85%] space-y-2">
+              <div className="bg-primary/15 border border-primary/20 rounded-2xl rounded-tr-sm px-4 py-3 space-y-2">
+                {item.text && <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.text}</p>}
+                {item.videoUrl && (
+                  <div className="text-xs flex items-center gap-1.5 text-primary/80 bg-primary/10 px-2 py-1 rounded-lg">
+                    <Video className="w-3 h-3" />
+                    <span className="truncate max-w-[240px]">{item.videoUrl}</span>
+                  </div>
+                )}
+                {item.imageBase64 && (
+                  <img src={item.imageBase64} alt="" className="max-h-48 w-auto rounded-lg object-contain border border-white/10" />
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {new Date(item.timestamp).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
+                </span>
+                <button
+                  onClick={() => handleDelete(item.id)}
+                  className="text-xs text-muted-foreground hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+        <div ref={feedEndRef} />
+      </div>
+
+      {/* Chat-style input bar — fixed at bottom */}
+      <div className="border-t border-white/10 pt-3 space-y-2 bg-background/50 backdrop-blur">
+        {/* Video URL input (shown when toggled) */}
+        {showVideoInput && (
+          <div className="flex items-center gap-2 px-1">
+            <Video className="w-4 h-4 text-muted-foreground shrink-0" />
+            <Input
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="Paste YouTube, Facebook, or Instagram URL…"
+              className="bg-background/50 border-white/10 h-9 text-sm"
+              autoFocus
+            />
+            <button onClick={() => { setShowVideoInput(false); setVideoUrl(""); }} className="text-muted-foreground hover:text-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Image preview */}
+        {imageBase64 && (
+          <div className="flex items-center gap-2 px-1 py-1 bg-primary/10 rounded-lg border border-primary/20">
+            <img src={imageBase64} alt="" className="h-10 w-10 object-cover rounded" />
+            <span className="text-xs text-muted-foreground truncate flex-1">{imagePreviewName}</span>
+            <button onClick={() => { setImageBase64(null); setImagePreviewName(""); }} className="text-muted-foreground hover:text-red-400">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Main input row */}
+        <div className="flex items-end gap-2">
+          {/* Plus button with popup */}
+          <div className="relative" ref={plusMenuRef}>
+            <button
+              onClick={() => setShowPlusMenu(v => !v)}
+              className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-colors ${showPlusMenu ? "bg-primary/20 border-primary/30 text-primary" : "bg-card border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/5"}`}
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+            {showPlusMenu && (
+              <div className="absolute bottom-12 left-0 bg-card border border-white/10 rounded-xl shadow-2xl p-1.5 w-44 z-50 space-y-0.5">
+                <button
+                  onClick={() => { fileInputRef.current?.click(); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm rounded-lg hover:bg-white/5 text-left transition-colors"
+                >
+                  <ImagePlus className="w-4 h-4 text-primary" /> Add Photo
+                </button>
+                <button
+                  onClick={() => { setShowVideoInput(true); setShowPlusMenu(false); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm rounded-lg hover:bg-white/5 text-left transition-colors"
+                >
+                  <Video className="w-4 h-4 text-accent" /> Add Video URL
+                </button>
+              </div>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          </div>
+
+          {/* Text area */}
+          <div className="flex-1 relative">
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message or announcement… (Enter to send)"
+              rows={1}
+              className="w-full bg-card/80 border border-white/10 rounded-xl px-4 py-2.5 text-sm resize-none outline-none focus:border-primary/40 transition-colors placeholder:text-muted-foreground min-h-[40px] max-h-[120px]"
+              style={{ fieldSizing: "content" } as any}
+            />
+          </div>
+
+          {/* Send button */}
+          <Button
+            onClick={handleSend}
+            disabled={!canSend}
+            className="w-10 h-10 p-0 rounded-xl bg-gradient-to-br from-primary to-accent hover:opacity-90 border-0 shadow-[0_0_15px_rgba(236,72,153,0.3)] disabled:opacity-30 disabled:shadow-none shrink-0"
+          >
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Admin login page ─────────────────────────────────────────────────────────
+
+function AdminLogin() {
+  const { signInWithEmail, signInWithGoogle, isLoading } = useFirebaseAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      await signInWithEmail(email, password);
+    } catch (err: any) {
+      setError(err?.message ?? "Authentication failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleGoogle() {
+    setError("");
+    setSubmitting(true);
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      if (err?.code !== "auth/popup-closed-by-user") setError(err?.message ?? "Google sign-in failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>;
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/15 blur-[120px] rounded-full pointer-events-none" />
+      <div className="relative z-10 w-full max-w-sm p-8 bg-card/80 border border-white/10 rounded-2xl shadow-2xl">
+        <div className="flex flex-col items-center mb-7">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white text-xl shadow-[0_0_20px_rgba(236,72,153,0.5)] mb-3">K</div>
+          <h1 className="text-xl font-bold">Admin Panel</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">kingsmmpanel</p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <Input type="email" placeholder="Admin email" value={email} onChange={(e) => setEmail(e.target.value)} className="bg-background/50 border-white/10" required disabled={submitting} />
+          <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="bg-background/50 border-white/10" required disabled={submitting} />
+          {error && <p className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{error}</p>}
+          <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent border-0" disabled={submitting}>
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Sign In
+          </Button>
+        </form>
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
+          <div className="relative flex justify-center text-xs text-muted-foreground"><span className="px-2 bg-card/80">or</span></div>
+        </div>
+        <Button variant="outline" className="w-full bg-background/50 border-white/10" onClick={handleGoogle} disabled={submitting} type="button">
+          Continue with Google
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Root Admin component ─────────────────────────────────────────────────────
+
+export default function Admin() {
+  const { user, isLoading, isAuthenticated, logout } = useFirebaseAuth();
+  const [tab, setTab] = useState<Tab>("dashboard");
+
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>;
+  if (!isAuthenticated) return <AdminLogin />;
+
+  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Card className="bg-card/50 border-white/5 p-8 text-center space-y-3 max-w-sm">
           <Shield className="w-12 h-12 text-red-400 mx-auto" />
           <p className="text-lg font-semibold">Access Denied</p>
-          <p className="text-muted-foreground text-sm">This admin panel is restricted. You are logged in as <span className="text-white font-mono text-xs">{user?.email}</span>.</p>
+          <p className="text-muted-foreground text-sm">Logged in as <span className="text-white font-mono text-xs">{user?.email}</span>.</p>
+          <Button variant="outline" size="sm" onClick={logout} className="mt-2">
+            <LogOut className="w-3 h-3 mr-1" /> Sign out
+          </Button>
         </Card>
       </div>
     );
@@ -787,6 +979,7 @@ export default function Admin() {
     { key: "services", label: "Services", icon: ToggleLeft },
     { key: "api", label: "API Connect", icon: Link },
     { key: "settings", label: "Payment Settings", icon: Settings },
+    { key: "broadcast", label: "Broadcasting", icon: Radio },
   ];
 
   return (
@@ -812,10 +1005,18 @@ export default function Admin() {
             >
               <item.icon className="w-4 h-4" />
               {item.label}
+              {item.key === "broadcast" && (
+                <span className="ml-auto w-2 h-2 rounded-full bg-primary animate-pulse" />
+              )}
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-border text-xs text-muted-foreground truncate">{user.email}</div>
+        <div className="p-4 border-t border-border space-y-2">
+          <p className="text-xs text-muted-foreground truncate px-1">{user.email}</p>
+          <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8" onClick={logout}>
+            <LogOut className="w-3 h-3 mr-2" /> Sign out
+          </Button>
+        </div>
       </aside>
 
       <main className="flex-1 overflow-y-auto relative">
@@ -828,6 +1029,7 @@ export default function Admin() {
           {tab === "services" && <ServicesTab />}
           {tab === "api" && <ApiTab />}
           {tab === "settings" && <SettingsTab />}
+          {tab === "broadcast" && <BroadcastTab adminEmail={user.email!} />}
         </div>
       </main>
     </div>

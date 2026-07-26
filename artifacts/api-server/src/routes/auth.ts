@@ -258,4 +258,81 @@ router.post("/mobile-auth/logout", async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+// Firebase Auth login — verifies Firebase ID token and creates a server session
+router.post("/firebase-login", async (req: Request, res: Response) => {
+  const { idToken } = req.body as { idToken?: string };
+  if (!idToken) {
+    res.status(400).json({ error: "idToken required" });
+    return;
+  }
+
+  // Verify with Firebase Identity Toolkit REST API (no Admin SDK needed)
+  let firebaseUser: {
+    localId: string;
+    email?: string;
+    displayName?: string;
+    photoUrl?: string;
+  } | null = null;
+
+  try {
+    const verifyRes = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.FIREBASE_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      },
+    );
+    if (!verifyRes.ok) {
+      res.status(401).json({ error: "Invalid Firebase token" });
+      return;
+    }
+    const data = (await verifyRes.json()) as { users?: typeof firebaseUser[] };
+    firebaseUser = data.users?.[0] ?? null;
+  } catch {
+    res.status(500).json({ error: "Failed to verify token" });
+    return;
+  }
+
+  if (!firebaseUser) {
+    res.status(401).json({ error: "User not found in Firebase" });
+    return;
+  }
+
+  const nameParts = (firebaseUser.displayName ?? "").split(" ");
+  const now = new Date();
+
+  const dbUser = await upsertUser({
+    id: firebaseUser.localId,
+    email: firebaseUser.email ?? null,
+    firstName: nameParts[0] || null,
+    lastName: nameParts.slice(1).join(" ") || null,
+    profileImageUrl: firebaseUser.photoUrl ?? null,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const sessionData: SessionData = {
+    user: {
+      id: dbUser.id,
+      email: dbUser.email,
+      firstName: dbUser.firstName,
+      lastName: dbUser.lastName,
+      profileImageUrl: dbUser.profileImageUrl,
+      createdAt: dbUser.createdAt,
+    } as User,
+    access_token: idToken,
+  };
+
+  const sid = await createSession(sessionData);
+  res.cookie(SESSION_COOKIE, sid, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_TTL,
+  });
+  res.json({ user: sessionData.user });
+});
+
 export default router;

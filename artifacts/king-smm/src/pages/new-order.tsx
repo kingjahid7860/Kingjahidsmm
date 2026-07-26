@@ -24,8 +24,8 @@ export default function NewOrder() {
   const searchParams = new URLSearchParams(window.location.search);
   const initialServiceId = searchParams.get("service");
 
-  const { data: services, isLoading: servicesLoading } = useListServices(undefined, { 
-    query: { queryKey: getListServicesQueryKey() } 
+  const { data: services, isLoading: servicesLoading } = useListServices(undefined, {
+    query: { queryKey: getListServicesQueryKey() }
   });
   const createOrder = useCreateOrder();
 
@@ -40,17 +40,23 @@ export default function NewOrder() {
 
   const selectedServiceId = form.watch("serviceId");
   const quantity = form.watch("quantity");
-  
-  const selectedService = services?.find(s => s.id === selectedServiceId);
-  
-  const charge = selectedService && quantity ? (selectedService.pricePerThousand / 1000) * quantity : 0;
+
+  // Services from RTDB have string IDs like "1", "2" — coerce to number for comparison
+  const selectedService = services?.find(s => Number(s.id) === Number(selectedServiceId));
+
+  const charge = selectedService && quantity > 0
+    ? (Number(selectedService.pricePerThousand) / 1000) * Number(quantity)
+    : 0;
 
   useEffect(() => {
     if (selectedService) {
-      if (quantity < selectedService.minQuantity) form.setValue("quantity", selectedService.minQuantity);
-      if (quantity > selectedService.maxQuantity) form.setValue("quantity", selectedService.maxQuantity);
+      const min = Number(selectedService.minQuantity);
+      const max = Number(selectedService.maxQuantity);
+      const qty = Number(quantity);
+      if (qty < min) form.setValue("quantity", min);
+      if (qty > max) form.setValue("quantity", max);
     }
-  }, [selectedServiceId, selectedService, form, quantity]);
+  }, [selectedServiceId]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     createOrder.mutate({ data: values }, {
@@ -85,7 +91,11 @@ export default function NewOrder() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Service</FormLabel>
-                    <Select disabled={servicesLoading} onValueChange={(v) => field.onChange(Number(v))} value={field.value ? field.value.toString() : ""}>
+                    <Select
+                      disabled={servicesLoading}
+                      onValueChange={(v) => field.onChange(Number(v))}
+                      value={field.value ? field.value.toString() : ""}
+                    >
                       <FormControl>
                         <SelectTrigger className="bg-background/50 border-white/10 h-12">
                           <SelectValue placeholder="Select a service" />
@@ -93,8 +103,8 @@ export default function NewOrder() {
                       </FormControl>
                       <SelectContent className="max-h-[300px]">
                         {services?.map(s => (
-                          <SelectItem key={s.id} value={s.id.toString()}>
-                            {s.id} - {s.name} (₹{s.pricePerThousand}/1k)
+                          <SelectItem key={s.id} value={String(Number(s.id))}>
+                            #{s.id} — {s.name} (₹{Number(s.pricePerThousand).toFixed(2)}/1k)
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -107,9 +117,10 @@ export default function NewOrder() {
               {selectedService && (
                 <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 text-sm space-y-2">
                   <p><strong>Description:</strong> {selectedService.description || "No description provided."}</p>
-                  <div className="flex gap-4 text-muted-foreground">
-                    <p>Min: {selectedService.minQuantity}</p>
-                    <p>Max: {selectedService.maxQuantity}</p>
+                  <div className="flex gap-6 text-muted-foreground">
+                    <p>Min: <span className="text-foreground font-medium">{Number(selectedService.minQuantity).toLocaleString()}</span></p>
+                    <p>Max: <span className="text-foreground font-medium">{Number(selectedService.maxQuantity).toLocaleString()}</span></p>
+                    <p>Rate: <span className="text-primary font-medium">₹{Number(selectedService.pricePerThousand).toFixed(2)}/1k</span></p>
                   </div>
                 </div>
               )}
@@ -135,7 +146,13 @@ export default function NewOrder() {
                   <FormItem>
                     <FormLabel>Quantity</FormLabel>
                     <FormControl>
-                      <Input type="number" className="bg-background/50 border-white/10 h-12 font-mono" {...field} />
+                      <Input
+                        type="number"
+                        className="bg-background/50 border-white/10 h-12 font-mono"
+                        min={selectedService ? Number(selectedService.minQuantity) : 1}
+                        max={selectedService ? Number(selectedService.maxQuantity) : undefined}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -148,8 +165,8 @@ export default function NewOrder() {
                   <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     readOnly
-                    value={selectedService ? `₹${charge.toFixed(2)}` : "Select a service first"}
-                    className="bg-background/50 border-white/10 h-12 pl-10 font-mono"
+                    value={selectedService ? `${charge.toFixed(2)}` : "Select a service first"}
+                    className="bg-background/50 border-white/10 h-12 pl-9 font-mono"
                   />
                 </div>
               </div>
@@ -157,13 +174,11 @@ export default function NewOrder() {
               <div className="pt-4 border-t border-white/10 flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Total Charge</p>
-                  <p className="text-3xl font-bold text-primary tracking-tight">
-                    ₹{charge.toFixed(2)}
-                  </p>
+                  <p className="text-3xl font-bold text-primary tracking-tight">₹{charge.toFixed(2)}</p>
                 </div>
-                <Button 
-                  type="submit" 
-                  size="lg" 
+                <Button
+                  type="submit"
+                  size="lg"
                   disabled={createOrder.isPending || !selectedService}
                   className="bg-gradient-to-r from-primary to-accent hover:opacity-90 border-0 shadow-[0_0_15px_rgba(236,72,153,0.3)] h-12 px-8 text-base"
                 >
