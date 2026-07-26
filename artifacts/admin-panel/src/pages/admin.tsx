@@ -395,9 +395,20 @@ function ServicesTab() {
 
   function openAdd() { setForm({ ...emptyService }); setShowAdd(true); }
   function openEdit(s: NonNullable<typeof services>[0]) {
-    setForm({ name: s.name, category: s.category, platform: s.platform, description: s.description, pricePerThousand: s.pricePerThousand, minQuantity: s.minQuantity, maxQuantity: s.maxQuantity });
-    setEditId(s.id);
+  setForm({
+    name: s.name,
+    category: s.category,
+    platform: s.platform,
+    description: s.description,
+    pricePerThousand: s.pricePerThousand,
+    minQuantity: s.minQuantity,
+    maxQuantity: s.maxQuantity,
+              api_service_id: (s as any).api_service_id || "",
+    
+  });
+  setEditId(s.id);
   }
+  
 
   async function handleSave() {
   const data = { 
@@ -798,7 +809,7 @@ function BroadcastTab({ adminEmail }: { adminEmail: string }) {
             <p className="text-sm">No broadcasts yet. Start by typing a message below.</p>
           </div>
         ) : feedItems.map((item) => (
-          <div key={item.id} className="group flex gap-2 justify-end">
+                       <div key={item.id} className="group flex gap-2 justify-end items-center">
             <div className="max-w-[85%] space-y-2">
               <div className="bg-primary/15 border border-primary/20 rounded-2xl rounded-tr-sm px-4 py-3 space-y-2">
                 {item.text && <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.text}</p>}
@@ -825,6 +836,7 @@ function BroadcastTab({ adminEmail }: { adminEmail: string }) {
               </div>
             </div>
           </div>
+      
         ))}
         <div ref={feedEndRef} />
       </div>
