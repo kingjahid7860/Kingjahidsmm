@@ -109,6 +109,27 @@ router.post("/orders", async (req, res) => {
       status: "Pending",
     });
 
+// iggrowbot API integration
+try {
+  const apiRes = await fetch("https://iggrowbot.com/api/v2", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      key: process.env.IGGROWBOT_API_KEY, // आपकी API key
+      action: "add",
+      service: serviceId,
+      link: link,
+      quantity: quantity,
+    }),
+  });
+
+  const apiData = await apiRes.json();
+  console.log("iggrowbot API Response:", apiData);
+} catch (apiErr) {
+  console.error("iggrowbot API Error:", apiErr);
+}
+    
+  
     res.status(201).json({
       id: order.id,
       serviceId: order.serviceId,
