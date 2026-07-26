@@ -370,7 +370,17 @@ function TopupsTab() {
 // ─── Tab: Services ───────────────────────────────────────────────────────────
 
 const PLATFORMS = ["Instagram", "YouTube", "Facebook", "Twitter/X", "TikTok", "Telegram", "Other"];
-const emptyService = { name: "", category: "", platform: "Instagram", description: "", pricePerThousand: 0, minQuantity: 100, maxQuantity: 100000 };
+const emptyService = { 
+  name: "", 
+  category: "", 
+  platform: "Instagram", 
+  description: "", 
+  pricePerThousand: 0, 
+  minQuantity: 100, 
+  maxQuantity: 100000, 
+  api_service_id: "" 
+};
+
 
 function ServicesTab() {
   const { data: services, isLoading } = useListAdminServices({ query: { queryKey: getListAdminServicesQueryKey() } });
@@ -390,10 +400,26 @@ function ServicesTab() {
   }
 
   async function handleSave() {
-    const data = { ...form, pricePerThousand: Number(form.pricePerThousand), minQuantity: Number(form.minQuantity), maxQuantity: Number(form.maxQuantity) };
-    if (!data.name || !data.category || !data.platform || !data.description || !data.pricePerThousand) {
-      toast({ title: "Please fill all required fields", variant: "destructive" }); return;
-    }
+  const data = { 
+    ...form,
+    pricePerThousand: Number(form.pricePerThousand),
+    minQuantity: Number(form.minQuantity),
+    maxQuantity: Number(form.maxQuantity),
+    api_service_id: form.api_service_id
+  };
+  if (!data.name || 
+      !data.category || 
+      !data.platform || 
+      !data.description || 
+      !data.pricePerThousand ||
+      !data.api_service_id) {
+    toast({ 
+      title: "Please fill all required fields",
+      variant: "destructive" 
+    });
+    return;
+  }
+    
     try {
       if (editId !== null) {
         await updateService({ id: editId, data }); toast({ title: "Service updated" }); setEditId(null);
@@ -423,6 +449,15 @@ function ServicesTab() {
           <label className="text-xs font-medium text-muted-foreground">Service Name *</label>
           <Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Instagram Followers" className="bg-background/50" />
         </div>
+        <div className="col-span-2">
+  <label className="text-xs font-medium text-muted-foreground">API Service ID *</label>
+  <Input
+    value={form.api_service_id}
+    onChange={(e) => setForm((f) => ({ ...f, api_service_id: e.target.value }))}
+    placeholder="e.g. 123"
+    className="bg-background/50"
+  />
+</div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Platform *</label>
           <Select value={form.platform} onValueChange={(v) => setForm(f => ({ ...f, platform: v }))}>
