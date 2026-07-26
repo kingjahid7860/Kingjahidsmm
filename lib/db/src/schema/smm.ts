@@ -6,6 +6,8 @@ import { usersTable } from "./auth";
 export const servicesTable = pgTable("services", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+    apiServiceId: text("api_service_id"),
+  
   category: text("category").notNull(),
   platform: text("platform").notNull(),
   description: text("description").notNull().default(""),

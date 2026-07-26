@@ -333,16 +333,27 @@ function SidebarInput({
   )
 }
 
-function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
+function SidebarHeader({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="sidebar-header"
       data-sidebar="header"
-      className={cn("flex flex-col gap-2 p-2", className)}
-      {...props}
-    />
+      className={cn("flex items-center gap-2 p-2", className)}
+      
+    >
+      <img
+        src="/logo.png"
+        alt="King SMM Logo"
+        className="h-8 w-8 rounded-full object-cover"
+      />
+      <span className="text-white text-lg font-bold">kingsmmpanel</span>
+    </div>
   )
 }
+
 
 function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
