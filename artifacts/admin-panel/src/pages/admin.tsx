@@ -542,7 +542,11 @@ function ServicesTab() {
                 <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No services yet.</TableCell></TableRow>
               ) : services?.map((s) => (
                 <TableRow key={s.id} className="border-border">
-                  <TableCell className="font-medium max-w-[160px] truncate">{s.name}</TableCell>
+`<TableCell className="font-medium max-w-[160px] truncate">
+  {`${s.id} - ${s.name}`}
+</TableCell>
+                  
+                  
                   <TableCell className="text-sm">{s.platform}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{s.category}</TableCell>
                   <TableCell className="text-primary font-medium">₹{Number(s.pricePerThousand).toFixed(2)}</TableCell>
