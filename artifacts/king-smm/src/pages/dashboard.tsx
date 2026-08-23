@@ -11,10 +11,12 @@ import { rtdb, type FeedItem } from "@/lib/firebase";
 // ─── Video helpers ────────────────────────────────────────────────────────────
 
 function getVideoEmbed(url: string): { type: string; embedUrl?: string } {
-  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/);
+  const ytMatch = url.match(
+    /(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtube\.com\/live\/|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/i,
+  );
   if (ytMatch) return { type: "youtube", embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?rel=0` };
 
-  if (url.match(/facebook\.com\/.+\/videos?\//)) {
+  if (url.match(/(?:facebook\.com|fb\.watch)\//i)) {
     return {
       type: "facebook",
       embedUrl: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false&width=640&autoplay=false`,
@@ -25,7 +27,14 @@ function getVideoEmbed(url: string): { type: string; embedUrl?: string } {
 
   if (url.match(/\.(mp4|webm|ogg|mov)(\?|$)/i)) return { type: "direct", embedUrl: url };
 
-  return { type: "iframe", embedUrl: url };
+  // Unknown URLs are still rendered as embeds, but never let a malformed
+  // value become an invalid iframe source.
+  try {
+    new URL(url);
+    return { type: "iframe", embedUrl: url };
+  } catch {
+    return { type: "iframe", embedUrl: undefined };
+  }
 }
 
 // ─── Instagram embed component ───────────────────────────────────────────────
@@ -85,7 +94,6 @@ function VideoPlayer({ url }: { url: string }) {
         className="absolute inset-0 w-full h-full rounded-xl"
         allow="autoplay; fullscreen; picture-in-picture"
         allowFullScreen
-        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
       />
     </div>
   );

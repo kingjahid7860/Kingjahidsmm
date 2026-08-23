@@ -956,6 +956,8 @@ components:
     ServiceInput:
       type: object
       properties:
+        apiServiceId:
+          type: string
         name:
           type: string
         category:
@@ -971,6 +973,7 @@ components:
         maxQuantity:
           type: integer
       required:
+        - apiServiceId
         - name
         - category
         - platform

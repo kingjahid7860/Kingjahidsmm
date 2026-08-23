@@ -833,7 +833,7 @@ function BroadcastTab({ adminEmail }: { adminEmail: string }) {
                 </span>
                 <button
                   onClick={() => handleDelete(item.id)}
-                  className="text-xs text-muted-foreground hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="text-xs text-muted-foreground hover:text-red-400 transition-colors"
                 >
                   Delete
                 </button>

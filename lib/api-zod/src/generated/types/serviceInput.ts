@@ -7,6 +7,7 @@
  */
 
 export interface ServiceInput {
+  apiServiceId: string;
   name: string;
   category: string;
   platform: string;

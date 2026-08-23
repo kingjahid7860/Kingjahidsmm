@@ -10,7 +10,9 @@ import {
 import { ref, set } from "firebase/database";
 import { auth, rtdb, googleProvider } from "@/lib/firebase";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+// The API is mounted at the workspace root, not below the frontend artifact
+// path (/admin-panel/). Using BASE_URL here makes the login request 404.
+const API_BASE = "/api";
 
 interface FirebaseAuthContextType {
   user: FirebaseUser | null;
@@ -37,12 +39,15 @@ async function upsertDbUser(fbUser: FirebaseUser) {
 
 async function createServerSession(fbUser: FirebaseUser) {
   const idToken = await fbUser.getIdToken();
-  await fetch(`${BASE}/api/firebase-login`, {
+  const response = await fetch(`${API_BASE}/firebase-login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({ idToken }),
   });
+  if (!response.ok) {
+    throw new Error("Could not create the server session");
+  }
 }
 
 export function FirebaseAuthProvider({ children }: { children: React.ReactNode }) {
@@ -75,7 +80,7 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
 
   const logout = async () => {
     await signOut(auth);
-    await fetch(`${BASE}/api/logout`, { credentials: "include" });
+    await fetch(`${API_BASE}/logout`, { credentials: "include" });
   };
 
   return (

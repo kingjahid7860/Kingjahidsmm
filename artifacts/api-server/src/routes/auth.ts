@@ -178,12 +178,19 @@ router.get("/callback", async (req: Request, res: Response) => {
 });
 
 router.get("/logout", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
   const origin = getOrigin(req);
 
   const sid = getSessionId(req);
   await clearSession(res, sid);
 
+  // Firebase sessions do not have an OIDC end-session URL. Returning here
+  // also keeps logout working when this API is deployed without REPL_ID.
+  if (!process.env.REPL_ID) {
+    res.json({ success: true });
+    return;
+  }
+
+  const config = await getOidcConfig();
   const endSessionUrl = oidc.buildEndSessionUrl(config, {
     client_id: process.env.REPL_ID!,
     post_logout_redirect_uri: origin,

@@ -278,7 +278,7 @@ router.patch("/admin/topups/:id", requireAdmin, async (req, res) => {
 router.get("/admin/services", requireAdmin, async (req, res) => {
   try {
     const services = await getAllServices();
-    res.json(services.map((s) => ({ ...s, pricePerThousand: Number(s.pricePerThousand) })));
+      res.json(services.map((s) => ({ ...s, apiServiceId: s.apiServiceId, pricePerThousand: Number(s.pricePerThousand) })));
   } catch (err) {
     req.log.error(err, "Failed to list admin services");
     res.status(500).json({ error: "Internal server error" });
@@ -351,11 +351,12 @@ router.put("/admin/settings", requireAdmin, async (req, res) => {
 
 router.post("/admin/services", requireAdmin, async (req, res) => {
   try {
-    const { name, category, platform, description, pricePerThousand, minQuantity, maxQuantity } = req.body;
-    if (!name || !category || !platform || !description || pricePerThousand == null) {
+    const { apiServiceId, name, category, platform, description, pricePerThousand, minQuantity, maxQuantity } = req.body;
+    if (!apiServiceId || !name || !category || !platform || !description || pricePerThousand == null) {
       return res.status(400).json({ error: "Missing required fields" });
     }
     const service = await createService({
+      apiServiceId: String(apiServiceId),
       name,
       category,
       platform,
@@ -376,8 +377,9 @@ router.post("/admin/services", requireAdmin, async (req, res) => {
 router.patch("/admin/services/:id", requireAdmin, async (req, res) => {
   try {
     const id = String(req.params.id);
-    const { name, category, platform, description, pricePerThousand, minQuantity, maxQuantity } = req.body;
+    const { apiServiceId, name, category, platform, description, pricePerThousand, minQuantity, maxQuantity } = req.body;
     const service = await updateService(id, {
+      apiServiceId: String(apiServiceId ?? ""),
       name,
       category,
       platform,

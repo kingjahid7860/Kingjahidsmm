@@ -24,6 +24,7 @@ export interface User {
 
 export interface Service {
   id: number;
+  apiServiceId: string;
   name: string;
   category: string;
   description: string;
@@ -172,6 +173,7 @@ export interface ApiSettings {
 }
 
 export interface ServiceInput {
+  apiServiceId: string;
   name: string;
   category: string;
   platform: string;

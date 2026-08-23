@@ -8,6 +8,7 @@
 
 export interface Service {
   id: number;
+  apiServiceId: string;
   name: string;
   category: string;
   description: string;

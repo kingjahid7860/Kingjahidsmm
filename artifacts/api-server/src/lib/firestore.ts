@@ -67,6 +67,7 @@ export interface User {
 
 export interface Service {
   id: string;
+  apiServiceId: string;
   name: string;
   category: string;
   platform: string;
@@ -146,6 +147,7 @@ export function userToDoc(user: Partial<User>): Record<string, unknown> {
 export function serviceFromChild(id: string, data: Record<string, unknown>): Service {
   return {
     id,
+    apiServiceId: String(data.apiServiceId ?? data.api_service_id ?? ""),
     name: (data.name as string) ?? "",
     category: (data.category as string) ?? "",
     platform: (data.platform as string) ?? "",
@@ -160,6 +162,7 @@ export function serviceFromChild(id: string, data: Record<string, unknown>): Ser
 
 export function serviceToDoc(data: Partial<Service>): Record<string, unknown> {
   const docData: Record<string, unknown> = {};
+  if (data.apiServiceId !== undefined) docData.apiServiceId = data.apiServiceId;
   if (data.name !== undefined) docData.name = data.name;
   if (data.category !== undefined) docData.category = data.category;
   if (data.platform !== undefined) docData.platform = data.platform;

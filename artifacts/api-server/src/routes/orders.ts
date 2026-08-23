@@ -6,6 +6,7 @@ import {
   updateWallet,
   createOrder,
   getOrderById,
+  getSetting,
 } from "../lib/firestore";
 import { CreateOrderBody } from "@workspace/api-zod";
 
@@ -94,6 +95,69 @@ router.post("/orders", async (req, res) => {
       return res.status(400).json({ error: "Insufficient balance" });
     }
 
+    // Forward the order to the configured provider before charging the wallet.
+    // Most SMM APIs use the common action/key/service/link/quantity contract.
+    const apiEnabled = (await getSetting("smm_api_enabled")) === "true";
+    if (apiEnabled) {
+      const apiUrl = (await getSetting("smm_api_url")).trim();
+      const apiKey = await getSetting("smm_api_key");
+      if (!apiUrl || !apiKey) {
+        return res.status(503).json({
+          error: "External SMM API is enabled but its URL or API key is missing",
+        });
+      }
+
+      let apiResponse: Response;
+      try {
+        apiResponse = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Accept: "application/json, text/plain, */*",
+          },
+          body: new URLSearchParams({
+            key: apiKey,
+            action: "add",
+            service: service.apiServiceId || String(serviceId),
+            link,
+            quantity: String(quantity),
+          }).toString(),
+          signal: AbortSignal.timeout(20_000),
+        });
+      } catch (providerError) {
+        req.log.error({ err: providerError }, "External SMM API request failed");
+        return res.status(502).json({
+          error: "Could not reach the external SMM API. The order was not charged.",
+        });
+      }
+
+      const rawProviderBody = await apiResponse.text();
+      let providerData: Record<string, unknown> | null = null;
+      try {
+        providerData = JSON.parse(rawProviderBody) as Record<string, unknown>;
+      } catch {
+        // Some providers return a plain-text error/success response.
+      }
+
+      // SMM providers commonly return {error: "..."} or {errors: [...]}
+      // with HTTP 200, so inspect the body as well as the HTTP status.
+      const providerError =
+        providerData?.error ??
+        providerData?.errors ??
+        (String(providerData?.status ?? "").toLowerCase() === "error"
+          ? providerData?.message ?? "provider error"
+          : null);
+      if (!apiResponse.ok || providerError) {
+        req.log.error(
+          { status: apiResponse.status, body: rawProviderBody.slice(0, 500) },
+          "External SMM API rejected order",
+        );
+        return res.status(502).json({
+          error: `External SMM API rejected the order: ${String(providerError ?? rawProviderBody).slice(0, 240)}`,
+        });
+      }
+    }
+
     await updateWallet(req.user!.id, {
       balance: Number(wallet.balance) - charge,
       totalSpent: Number(wallet.totalSpent) + charge,
@@ -106,30 +170,9 @@ router.post("/orders", async (req, res) => {
       link,
       quantity,
       charge,
-      status: "Pending",
+      status: apiEnabled ? "Processing" : "Pending",
     });
 
-// iggrowbot API integration
-try {
-  const apiRes = await fetch("https://iggrowbot.com/api/v2", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      key: process.env.IGGROWBOT_API_KEY, // आपकी API key
-      action: "add",
-      service: serviceId,
-      link: link,
-      quantity: quantity,
-    }),
-  });
-
-  const apiData = await apiRes.json();
-  console.log("iggrowbot API Response:", apiData);
-} catch (apiErr) {
-  console.error("iggrowbot API Error:", apiErr);
-}
-    
-  
     res.status(201).json({
       id: order.id,
       serviceId: order.serviceId,
