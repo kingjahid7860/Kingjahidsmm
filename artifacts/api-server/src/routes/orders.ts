@@ -7,6 +7,8 @@ import {
   createOrder,
   getOrderById,
   getSetting,
+  getUserById,
+  getApiProviderById,
 } from "../lib/firestore";
 import { CreateOrderBody } from "@workspace/api-zod";
 
@@ -89,7 +91,9 @@ router.post("/orders", async (req, res) => {
       });
     }
 
-    const charge = (Number(service.pricePerThousand) * quantity) / 1000;
+    const user = await getUserById(req.user!.id);
+    const discountPercent = Math.min(100, Math.max(0, Number(user?.discountPercent ?? 0)));
+    const charge = (Number(service.pricePerThousand) * quantity * (1 - discountPercent / 100)) / 1000;
     const wallet = await ensureWallet(req.user!.id);
     if (Number(wallet.balance) < charge) {
       return res.status(400).json({ error: "Insufficient balance" });
@@ -97,10 +101,11 @@ router.post("/orders", async (req, res) => {
 
     // Forward the order to the configured provider before charging the wallet.
     // Most SMM APIs use the common action/key/service/link/quantity contract.
-    const apiEnabled = (await getSetting("smm_api_enabled")) === "true";
+    const provider = service.providerId ? await getApiProviderById(service.providerId) : null;
+    const apiEnabled = provider ? provider.isEnabled : (await getSetting("smm_api_enabled")) === "true";
     if (apiEnabled) {
-      const apiUrl = (await getSetting("smm_api_url")).trim();
-      const apiKey = await getSetting("smm_api_key");
+      const apiUrl = (provider?.apiUrl ?? await getSetting("smm_api_url")).trim();
+      const apiKey = provider?.apiKey ?? await getSetting("smm_api_key");
       if (!apiUrl || !apiKey) {
         return res.status(503).json({
           error: "External SMM API is enabled but its URL or API key is missing",

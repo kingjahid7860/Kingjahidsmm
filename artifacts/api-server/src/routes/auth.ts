@@ -68,6 +68,7 @@ async function upsertUserFromClaims(claims: Record<string, unknown>): Promise<Fi
     profileImageUrl: (claims.profile_image_url || claims.picture) as
       | string
       | null,
+    discountPercent: existing?.discountPercent ?? 0,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
@@ -274,12 +275,13 @@ router.post("/firebase-login", async (req: Request, res: Response) => {
   }
 
   // Verify with Firebase Identity Toolkit REST API (no Admin SDK needed)
-  let firebaseUser: {
+  type FirebaseLookupUser = {
     localId: string;
     email?: string;
     displayName?: string;
     photoUrl?: string;
-  } | null = null;
+  };
+  let firebaseUser: FirebaseLookupUser | null = null;
 
   try {
     const verifyRes = await fetch(
@@ -294,7 +296,7 @@ router.post("/firebase-login", async (req: Request, res: Response) => {
       res.status(401).json({ error: "Invalid Firebase token" });
       return;
     }
-    const data = (await verifyRes.json()) as { users?: typeof firebaseUser[] };
+    const data = (await verifyRes.json()) as { users?: FirebaseLookupUser[] };
     firebaseUser = data.users?.[0] ?? null;
   } catch {
     res.status(500).json({ error: "Failed to verify token" });
@@ -315,6 +317,7 @@ router.post("/firebase-login", async (req: Request, res: Response) => {
     firstName: nameParts[0] || null,
     lastName: nameParts.slice(1).join(" ") || null,
     profileImageUrl: firebaseUser.photoUrl ?? null,
+    discountPercent: (await getUserById(firebaseUser.localId))?.discountPercent ?? 0,
     createdAt: now,
     updatedAt: now,
   });

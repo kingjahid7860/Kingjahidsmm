@@ -61,12 +61,14 @@ export interface User {
   firstName: string | null;
   lastName: string | null;
   profileImageUrl: string | null;
+  discountPercent: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface Service {
   id: string;
+  providerId?: string | null;
   apiServiceId: string;
   name: string;
   category: string;
@@ -77,6 +79,16 @@ export interface Service {
   maxQuantity: number;
   isActive: boolean;
   createdAt: Date;
+}
+
+export interface ApiProvider {
+  id: string;
+  name: string;
+  apiUrl: string;
+  apiKey: string;
+  isEnabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Order {
@@ -128,6 +140,7 @@ function userFromChild(id: string, data: Record<string, unknown>): User {
     firstName: (data.firstName as string | null) ?? null,
     lastName: (data.lastName as string | null) ?? null,
     profileImageUrl: (data.profileImageUrl as string | null) ?? null,
+    discountPercent: toNumber(data.discountPercent),
     createdAt: dateFromDb(data.createdAt),
     updatedAt: dateFromDb(data.updatedAt),
   };
@@ -139,6 +152,7 @@ export function userToDoc(user: Partial<User>): Record<string, unknown> {
   if (user.firstName !== undefined) data.firstName = user.firstName;
   if (user.lastName !== undefined) data.lastName = user.lastName;
   if (user.profileImageUrl !== undefined) data.profileImageUrl = user.profileImageUrl;
+  if (user.discountPercent !== undefined) data.discountPercent = user.discountPercent;
   if (user.createdAt !== undefined) data.createdAt = toDbDate(user.createdAt);
   if (user.updatedAt !== undefined) data.updatedAt = toDbDate(user.updatedAt);
   return data;
@@ -147,6 +161,7 @@ export function userToDoc(user: Partial<User>): Record<string, unknown> {
 export function serviceFromChild(id: string, data: Record<string, unknown>): Service {
   return {
     id,
+    providerId: data.providerId == null ? null : String(data.providerId),
     apiServiceId: String(data.apiServiceId ?? data.api_service_id ?? ""),
     name: (data.name as string) ?? "",
     category: (data.category as string) ?? "",
@@ -163,6 +178,7 @@ export function serviceFromChild(id: string, data: Record<string, unknown>): Ser
 export function serviceToDoc(data: Partial<Service>): Record<string, unknown> {
   const docData: Record<string, unknown> = {};
   if (data.apiServiceId !== undefined) docData.apiServiceId = data.apiServiceId;
+  if (data.providerId !== undefined) docData.providerId = data.providerId;
   if (data.name !== undefined) docData.name = data.name;
   if (data.category !== undefined) docData.category = data.category;
   if (data.platform !== undefined) docData.platform = data.platform;
@@ -301,10 +317,71 @@ export async function getUserById(id: string): Promise<User | null> {
   return userFromChild(id, snapshot.val() as Record<string, unknown>);
 }
 
+export async function updateUser(id: string, data: Partial<User>): Promise<User> {
+  const path = ref(rtdb, `users/${id}`);
+  await update(path, userToDoc({ ...data, updatedAt: new Date() }));
+  const snapshot = await get(path);
+  if (!snapshot.exists()) throw new Error("User not found");
+  return userFromChild(id, snapshot.val() as Record<string, unknown>);
+}
+
 export async function getAllUsers(): Promise<User[]> {
   const snapshot = await get(ref(rtdb, "users"));
   const list = snapshotToList(snapshot, userFromChild);
   return list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
+// Provider connections
+function providerFromChild(id: string, data: Record<string, unknown>): ApiProvider {
+  return {
+    id,
+    name: String(data.name ?? ""),
+    apiUrl: String(data.apiUrl ?? ""),
+    apiKey: String(data.apiKey ?? ""),
+    isEnabled: data.isEnabled !== false,
+    createdAt: dateFromDb(data.createdAt),
+    updatedAt: dateFromDb(data.updatedAt),
+  };
+}
+
+function providerToDoc(data: Partial<ApiProvider>): Record<string, unknown> {
+  const doc: Record<string, unknown> = {};
+  if (data.name !== undefined) doc.name = data.name;
+  if (data.apiUrl !== undefined) doc.apiUrl = data.apiUrl;
+  if (data.apiKey !== undefined) doc.apiKey = data.apiKey;
+  if (data.isEnabled !== undefined) doc.isEnabled = data.isEnabled;
+  if (data.createdAt !== undefined) doc.createdAt = toDbDate(data.createdAt);
+  if (data.updatedAt !== undefined) doc.updatedAt = toDbDate(data.updatedAt);
+  return doc;
+}
+
+export async function getAllApiProviders(): Promise<ApiProvider[]> {
+  const snapshot = await get(ref(rtdb, "apiProviders"));
+  return snapshotToList(snapshot, providerFromChild).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getApiProviderById(id: string): Promise<ApiProvider | null> {
+  const snapshot = await get(ref(rtdb, `apiProviders/${id}`));
+  return snapshot.exists() ? providerFromChild(id, snapshot.val() as Record<string, unknown>) : null;
+}
+
+export async function createApiProvider(data: Omit<ApiProvider, "id" | "createdAt" | "updatedAt">): Promise<ApiProvider> {
+  const id = await idForNewDocument("apiProviders");
+  const now = new Date();
+  const provider: ApiProvider = { ...data, id, createdAt: now, updatedAt: now };
+  await set(ref(rtdb, `apiProviders/${id}`), providerToDoc(provider));
+  return provider;
+}
+
+export async function updateApiProvider(id: string, data: Partial<ApiProvider>): Promise<ApiProvider> {
+  const path = ref(rtdb, `apiProviders/${id}`);
+  await update(path, providerToDoc({ ...data, updatedAt: new Date() }));
+  const snapshot = await get(path);
+  return providerFromChild(id, snapshot.val() as Record<string, unknown>);
+}
+
+export async function deleteApiProvider(id: string): Promise<void> {
+  await remove(ref(rtdb, `apiProviders/${id}`));
 }
 
 // Wallets

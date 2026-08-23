@@ -16,6 +16,12 @@ import {
   softDeleteService,
   updateOrder,
   updateTopupRequest,
+  updateUser,
+  getAllApiProviders,
+  getApiProviderById,
+  createApiProvider,
+  updateApiProvider,
+  deleteApiProvider,
   type Service,
   type Wallet,
   type Order,
@@ -83,6 +89,7 @@ router.get("/admin/users", requireAdmin, async (req, res) => {
         profileImageUrl: u.profileImageUrl,
         balance: Number(walletMap.get(u.id)?.balance ?? 0),
         totalOrders: orderCounts.get(u.id) ?? 0,
+        discountPercent: Number(u.discountPercent ?? 0),
         createdAt: u.createdAt,
       })),
     );
@@ -112,6 +119,24 @@ router.patch("/admin/users/:id/balance", requireAdmin, async (req, res) => {
     });
   } catch (err) {
     req.log.error(err, "Failed to update user balance");
+    res.status(500).json({ error: "Internal server error" });
+  }
+  return;
+});
+
+router.patch("/admin/users/:id/pricing", requireAdmin, async (req, res) => {
+  try {
+    const userId = String(req.params.id);
+    const discountPercent = Number(req.body?.discountPercent);
+    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+      return res.status(400).json({ error: "Discount must be between 0 and 100" });
+    }
+    const user = await getUserById(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const updated = await updateUser(userId, { discountPercent });
+    res.json({ id: updated.id, discountPercent: Number(updated.discountPercent) });
+  } catch (err) {
+    req.log.error(err, "Failed to update user pricing");
     res.status(500).json({ error: "Internal server error" });
   }
   return;
@@ -298,6 +323,108 @@ router.get("/admin/api-settings", requireAdmin, async (req, res) => {
   } catch (err) {
     req.log.error(err, "Failed to get API settings");
     res.status(500).json({ error: "Internal server error" });
+  }
+  return;
+});
+
+router.get("/admin/api-providers", requireAdmin, async (req, res) => {
+  try {
+    const providers = await getAllApiProviders();
+    res.json(providers.map(({ apiKey, ...provider }) => ({ ...provider, hasApiKey: Boolean(apiKey) })));
+  } catch (err) {
+    req.log.error(err, "Failed to list API providers");
+    res.status(500).json({ error: "Internal server error" });
+  }
+  return;
+});
+
+router.post("/admin/api-providers", requireAdmin, async (req, res) => {
+  try {
+    const { name, apiUrl, apiKey, isEnabled = true } = req.body ?? {};
+    if (!String(name ?? "").trim() || !String(apiUrl ?? "").trim() || !String(apiKey ?? "").trim()) {
+      return res.status(400).json({ error: "Provider name, API URL and API key are required" });
+    }
+    const provider = await createApiProvider({ name: String(name).trim(), apiUrl: String(apiUrl).trim(), apiKey: String(apiKey), isEnabled: Boolean(isEnabled) });
+    res.status(201).json({ ...provider, apiKey: undefined });
+  } catch (err) {
+    req.log.error(err, "Failed to create API provider");
+    res.status(500).json({ error: "Internal server error" });
+  }
+  return;
+});
+
+router.patch("/admin/api-providers/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const current = await getApiProviderById(id);
+    if (!current) return res.status(404).json({ error: "Provider not found" });
+    const patch = req.body ?? {};
+    const provider = await updateApiProvider(id, {
+      name: patch.name === undefined ? current.name : String(patch.name).trim(),
+      apiUrl: patch.apiUrl === undefined ? current.apiUrl : String(patch.apiUrl).trim(),
+      apiKey: patch.apiKey ? String(patch.apiKey) : current.apiKey,
+      isEnabled: patch.isEnabled === undefined ? current.isEnabled : Boolean(patch.isEnabled),
+    });
+    const { apiKey, ...safe } = provider;
+    res.json({ ...safe, hasApiKey: Boolean(apiKey) });
+  } catch (err) {
+    req.log.error(err, "Failed to update API provider");
+    res.status(500).json({ error: "Internal server error" });
+  }
+  return;
+});
+
+router.delete("/admin/api-providers/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    if (!(await getApiProviderById(id))) return res.status(404).json({ error: "Provider not found" });
+    await deleteApiProvider(id);
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error(err, "Failed to delete API provider");
+    res.status(500).json({ error: "Internal server error" });
+  }
+  return;
+});
+
+router.post("/admin/api-providers/:id/sync", requireAdmin, async (req, res) => {
+  try {
+    const provider = await getApiProviderById(String(req.params.id));
+    if (!provider) return res.status(404).json({ error: "Provider not found" });
+    const response = await fetch(provider.apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json, text/plain, */*" },
+      body: new URLSearchParams({ key: provider.apiKey, action: "services" }).toString(),
+      signal: AbortSignal.timeout(20000),
+    });
+    const raw = await response.text();
+    let payload: unknown;
+    try { payload = JSON.parse(raw); } catch { payload = null; }
+    if (!response.ok || !payload) return res.status(502).json({ error: "Provider returned an invalid services response" });
+    const rows = Array.isArray(payload) ? payload : Array.isArray((payload as any).services) ? (payload as any).services : [];
+    if (!rows.length) return res.status(422).json({ error: "Provider returned no services" });
+    const existing = await getAllServices();
+    const byProviderId = new Map(existing.filter((s) => s.providerId === provider.id).map((s) => [s.apiServiceId, s]));
+    let imported = 0;
+    for (const row of rows as Record<string, unknown>[]) {
+      const apiServiceId = String(row.service ?? row.id ?? "").trim();
+      const name = String(row.name ?? `Service ${apiServiceId}`).trim();
+      if (!apiServiceId || !name) continue;
+      const rate = Number(row.rate ?? row.price ?? 0);
+      const minQuantity = Number(row.min ?? row.min_quantity ?? 1);
+      const maxQuantity = Number(row.max ?? row.max_quantity ?? 1000000);
+      const category = String(row.category ?? row.type ?? "Imported");
+      const platform = String(row.platform ?? category);
+      const values = { providerId: provider.id, apiServiceId, name, category, platform, description: String(row.description ?? name), pricePerThousand: Number.isFinite(rate) ? rate : 0, minQuantity: Number.isFinite(minQuantity) ? minQuantity : 1, maxQuantity: Number.isFinite(maxQuantity) ? maxQuantity : 1000000, isActive: true };
+      const match = byProviderId.get(apiServiceId);
+      if (match) await updateService(match.id, values);
+      else await createService(values);
+      imported++;
+    }
+    res.json({ imported });
+  } catch (err) {
+    req.log.error(err, "Failed to sync API provider services");
+    res.status(502).json({ error: "Could not fetch services from this provider" });
   }
   return;
 });

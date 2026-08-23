@@ -42,13 +42,18 @@ import { Switch } from "@/components/ui/switch";
 import {
   Users, ShoppingCart, Wallet, Clock, Settings, ChevronLeft, ChevronRight,
   Shield, Edit2, Check, X, Plus, Trash2, Link, Key, ToggleLeft, Radio,
-  Send, ImagePlus, Video, Loader2, LogOut,
+  Send, ImagePlus, Video, Loader2, LogOut, Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const ADMIN_EMAIL = "kingjahid0786@gmail.com";
+const apiRequest = async (path: string, init?: RequestInit) => {
+  const response = await fetch(path, { credentials: "include", ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
+  if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? `Request failed (${response.status})`);
+  return response.json();
+};
 
 type Tab = "dashboard" | "users" | "orders" | "topups" | "services" | "api" | "settings" | "broadcast";
 
@@ -130,6 +135,9 @@ function UsersTab() {
   const { toast } = useToast();
   const [editId, setEditId] = useState<string | null>(null);
   const [balanceInput, setBalanceInput] = useState("");
+  const [discountInput, setDiscountInput] = useState("");
+  const [pricingId, setPricingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   async function handleSave(userId: string) {
     const balance = Number(balanceInput);
@@ -144,17 +152,39 @@ function UsersTab() {
     }
   }
 
+  async function handleDiscountSave(userId: string) {
+    const discountPercent = Number(discountInput);
+    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) return;
+    try {
+      await apiRequest(`/api/admin/users/${userId}/pricing`, { method: "PATCH", body: JSON.stringify({ discountPercent }) });
+      await qc.invalidateQueries({ queryKey: getListAdminUsersQueryKey() });
+      toast({ title: "User discount updated" });
+      setPricingId(null);
+    } catch (error: any) {
+      toast({ title: "Failed to update discount", description: error.message, variant: "destructive" });
+    }
+  }
+
+  const filteredUsers = users?.filter((u) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return [u.email, u.firstName, u.lastName, u.id].filter(Boolean).some((value) => String(value).toLowerCase().includes(term));
+  });
+
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Users ({users?.length ?? 0})</h2>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div><h2 className="text-2xl font-bold">Users ({users?.length ?? 0})</h2><p className="text-xs text-muted-foreground mt-1">Search Gmail to see the user ID, name, fund and pricing.</p></div>
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search Gmail / user ID" className="w-full sm:w-64 bg-card/50 border-white/10" />
+      </div>
       <Card className="bg-card/50 border-white/5 backdrop-blur">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-border">
-                <TableHead>Email</TableHead>
+                <TableHead>User ID</TableHead><TableHead>Email</TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead>Balance</TableHead>
+                <TableHead>Balance</TableHead><TableHead>Discount</TableHead>
                 <TableHead>Orders</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -162,11 +192,12 @@ function UsersTab() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
-              ) : users?.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No users yet.</TableCell></TableRow>
-              ) : users?.map((u) => (
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              ) : filteredUsers?.length === 0 ? (
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No matching users found.</TableCell></TableRow>
+              ) : filteredUsers?.map((u) => (
                 <TableRow key={u.id} className="border-border">
+                  <TableCell className="font-mono text-xs text-muted-foreground max-w-[150px] truncate" title={u.id}>{u.id}</TableCell>
                   <TableCell className="text-sm">{u.email ?? "—"}</TableCell>
                   <TableCell className="text-sm">{[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}</TableCell>
                   <TableCell>
@@ -180,12 +211,25 @@ function UsersTab() {
                       <span className="font-medium text-green-400">₹{u.balance.toFixed(2)}</span>
                     )}
                   </TableCell>
+                  <TableCell>
+                    {pricingId === u.id ? (
+                      <div className="flex items-center gap-1">
+                        <Input type="number" min="0" max="100" value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} className="w-20 h-7 text-sm" autoFocus />
+                        <span className="text-xs">%</span>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-green-400" onClick={() => handleDiscountSave(u.id)}><Check className="w-4 h-4" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-red-400" onClick={() => setPricingId(null)}><X className="w-4 h-4" /></Button>
+                      </div>
+                    ) : <span className="font-medium text-accent">{Number((u as any).discountPercent ?? 0).toFixed(2)}%</span>}
+                  </TableCell>
                   <TableCell>{u.totalOrders}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{formatDate(u.createdAt)}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => { setEditId(u.id); setBalanceInput(String(u.balance)); }}>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditId(u.id); setBalanceInput(String(u.balance)); }}>
                       <Edit2 className="w-3 h-3 mr-1" /> Edit Balance
                     </Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setPricingId(u.id); setDiscountInput(String((u as any).discountPercent ?? 0)); }}>
+                        <Edit2 className="w-3 h-3 mr-1" /> Price
+                      </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -587,10 +631,18 @@ function ApiTab() {
   const [apiKey, setApiKey] = useState("");
   const [isEnabled, setIsEnabled] = useState(false);
   const [showKey, setShowKey] = useState(false);
+  const [providers, setProviders] = useState<any[]>([]);
+  const [providerForm, setProviderForm] = useState({ name: "", apiUrl: "", apiKey: "", isEnabled: true });
+  const [editingProvider, setEditingProvider] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (settings) { setApiUrl(settings.apiUrl); setApiKey(settings.apiKey); setIsEnabled(settings.isEnabled); }
   }, [settings]);
+
+  React.useEffect(() => {
+    apiRequest("/api/admin/api-providers").then(setProviders).catch(() => setProviders([]));
+  }, []);
 
   async function handleSave() {
     try {
@@ -600,6 +652,35 @@ function ApiTab() {
     } catch {
       toast({ title: "Failed to save API settings", variant: "destructive" });
     }
+  }
+
+  async function saveProvider() {
+    if (!providerForm.name.trim() || !providerForm.apiUrl.trim() || (!providerForm.apiKey.trim() && !editingProvider)) {
+      toast({ title: "Provider name, URL and API key are required", variant: "destructive" }); return;
+    }
+    try {
+      const saved = await apiRequest(editingProvider ? `/api/admin/api-providers/${editingProvider}` : "/api/admin/api-providers", {
+        method: editingProvider ? "PATCH" : "POST", body: JSON.stringify(providerForm),
+      });
+      setProviders((items) => editingProvider ? items.map((item) => item.id === editingProvider ? saved : item) : [...items, saved]);
+      setProviderForm({ name: "", apiUrl: "", apiKey: "", isEnabled: true }); setEditingProvider(null);
+      toast({ title: editingProvider ? "Provider updated" : "Provider added" });
+    } catch (error: any) { toast({ title: "Could not save provider", description: error.message, variant: "destructive" }); }
+  }
+
+  async function syncProvider(id: string) {
+    setSyncing(id);
+    try {
+      const result = await apiRequest(`/api/admin/api-providers/${id}/sync`, { method: "POST" });
+      await qc.invalidateQueries({ queryKey: getListAdminServicesQueryKey() });
+      toast({ title: `${result.imported} services imported`, description: "You can edit them in the Services tab." });
+    } catch (error: any) { toast({ title: "Service sync failed", description: error.message, variant: "destructive" }); }
+    finally { setSyncing(null); }
+  }
+
+  async function removeProvider(id: string) {
+    try { await apiRequest(`/api/admin/api-providers/${id}`, { method: "DELETE" }); setProviders((items) => items.filter((item) => item.id !== id)); toast({ title: "Provider removed" }); }
+    catch (error: any) { toast({ title: "Could not remove provider", description: error.message, variant: "destructive" }); }
   }
 
   return (
@@ -632,6 +713,35 @@ function ApiTab() {
             </div>
           </div>
           <Button onClick={handleSave} className="bg-gradient-to-r from-primary to-accent text-white w-full" disabled={isLoading}>Save API Settings</Button>
+        </CardContent>
+      </Card>
+      <Card className="bg-card/50 border-white/5 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="text-base">Multiple API Providers</CardTitle>
+          <p className="text-xs text-muted-foreground">Add multiple SMM APIs, then import all services from each one automatically.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Input placeholder="Provider name (e.g. Provider 1)" value={providerForm.name} onChange={(e) => setProviderForm((f) => ({ ...f, name: e.target.value }))} />
+            <Input placeholder="https://provider.com/api/v2" value={providerForm.apiUrl} onChange={(e) => setProviderForm((f) => ({ ...f, apiUrl: e.target.value }))} />
+            <Input type="password" placeholder={editingProvider ? "Leave blank to keep current key" : "API key"} value={providerForm.apiKey} onChange={(e) => setProviderForm((f) => ({ ...f, apiKey: e.target.value }))} />
+            <div className="flex items-center gap-2 px-2"><Switch checked={providerForm.isEnabled} onCheckedChange={(v) => setProviderForm((f) => ({ ...f, isEnabled: v }))} /><span className="text-sm">Enabled</span></div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={saveProvider} className="bg-gradient-to-r from-primary to-accent text-white">{editingProvider ? "Save Provider" : "Add Provider"}</Button>
+            {editingProvider && <Button variant="outline" onClick={() => { setEditingProvider(null); setProviderForm({ name: "", apiUrl: "", apiKey: "", isEnabled: true }); }}>Cancel</Button>}
+          </div>
+          <div className="space-y-2">
+            {providers.length === 0 ? <p className="text-sm text-muted-foreground">No additional providers added yet.</p> : providers.map((provider) => (
+              <div key={provider.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-background/40 p-3">
+                <div className="min-w-0 flex-1"><p className="font-medium">{provider.name}</p><p className="text-xs text-muted-foreground truncate">{provider.apiUrl}</p></div>
+                <Badge variant="outline" className={provider.isEnabled ? "text-green-400" : "text-muted-foreground"}>{provider.isEnabled ? "Enabled" : "Disabled"}</Badge>
+                <Button size="sm" onClick={() => syncProvider(provider.id)} disabled={syncing === provider.id}>{syncing === provider.id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />} Import Services</Button>
+                <Button size="sm" variant="ghost" onClick={() => { setEditingProvider(provider.id); setProviderForm({ name: provider.name, apiUrl: provider.apiUrl, apiKey: "", isEnabled: provider.isEnabled }); }}>Edit</Button>
+                <Button size="sm" variant="ghost" className="text-red-400" onClick={() => removeProvider(provider.id)}><Trash2 className="w-3 h-3" /></Button>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

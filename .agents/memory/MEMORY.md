@@ -1,3 +1,4 @@
 - [Firebase Realtime Database backend](firebase-rtdb.md) — API server uses the Firebase web SDK against RTDB, not Firestore, with numeric IDs from `counters/{name}` transactions.
 - [Firebase Auth integration](firebase-auth.md) — Both frontends use Firebase Auth (email+password, Google popup); `/api/firebase-login` verifies via Identity Toolkit REST API and creates RTDB session; no Admin SDK needed.
 - [Live Broadcaster feed](feed-broadcast.md) — Admin broadcasts to RTDB `/dashboard_feed/{pushKey}`; user dashboard listens with `onValue`; admin-panel Broadcasting tab has chat-style UI with photo/video support.
+- [Multi-provider pricing](multi-provider-pricing.md) — Imported services retain their provider; per-user discounts are applied both in catalog rates and server-side order charges.
