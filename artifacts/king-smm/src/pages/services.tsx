@@ -40,7 +40,21 @@ export default function Services() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-        </div>
+         </div>
+        <Select onValueChange={(value) => setSearch(value)}>
+  <SelectTrigger className="w-full sm:w-[200px] bg-card/50 border-white/10">
+    <SelectValue placeholder="Search Services..." />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all">All Services</SelectItem>
+    {services?.map((service) => (
+      <SelectItem key={service.id} value={service.name}>
+        {service.name}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+        
         <Select value={category} onValueChange={setCategory}>
           <SelectTrigger className="w-full sm:w-[200px] bg-card/50 border-white/10">
             <SelectValue placeholder="All Categories" />
