@@ -38,6 +38,7 @@ export const ListServicesQueryParams = zod.object({
 
 export const ListServicesResponseItem = zod.object({
   "id": zod.number(),
+  "apiServiceId": zod.string(),
   "name": zod.string(),
   "category": zod.string(),
   "description": zod.string(),
@@ -59,6 +60,7 @@ export const GetServiceParams = zod.object({
 
 export const GetServiceResponse = zod.object({
   "id": zod.number(),
+  "apiServiceId": zod.string(),
   "name": zod.string(),
   "category": zod.string(),
   "description": zod.string(),

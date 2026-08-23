@@ -248,7 +248,7 @@ function OrdersTab() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
               ) : data?.orders.length === 0 ? (
                 <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No orders found.</TableCell></TableRow>
               ) : data?.orders.map((o) => (
@@ -371,6 +371,7 @@ function TopupsTab() {
 
 const PLATFORMS = ["Instagram", "YouTube", "Facebook", "Twitter/X", "TikTok", "Telegram", "Other"];
 const emptyService = { 
+  apiServiceId: "",
   name: "", 
   category: "", 
   platform: "Instagram", 
@@ -378,7 +379,6 @@ const emptyService = {
   pricePerThousand: 0, 
   minQuantity: 100, 
   maxQuantity: 100000, 
-  api_service_id: "" 
 };
 
 
@@ -396,6 +396,7 @@ function ServicesTab() {
   function openAdd() { setForm({ ...emptyService }); setShowAdd(true); }
   function openEdit(s: NonNullable<typeof services>[0]) {
   setForm({
+    apiServiceId: (s as any).apiServiceId || (s as any).api_service_id || "",
     name: s.name,
     category: s.category,
     platform: s.platform,
@@ -403,8 +404,6 @@ function ServicesTab() {
     pricePerThousand: s.pricePerThousand,
     minQuantity: s.minQuantity,
     maxQuantity: s.maxQuantity,
-              api_service_id: (s as any).api_service_id || "",
-    
   });
   setEditId(s.id);
   }
@@ -416,14 +415,14 @@ function ServicesTab() {
     pricePerThousand: Number(form.pricePerThousand),
     minQuantity: Number(form.minQuantity),
     maxQuantity: Number(form.maxQuantity),
-    api_service_id: form.api_service_id
+    apiServiceId: form.apiServiceId
   };
   if (!data.name || 
       !data.category || 
       !data.platform || 
       !data.description || 
       !data.pricePerThousand ||
-      !data.api_service_id) {
+       !data.apiServiceId) {
     toast({ 
       title: "Please fill all required fields",
       variant: "destructive" 
@@ -460,15 +459,16 @@ function ServicesTab() {
           <label className="text-xs font-medium text-muted-foreground">Service Name *</label>
           <Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Instagram Followers" className="bg-background/50" />
         </div>
-        <div className="col-span-2">
-  <label className="text-xs font-medium text-muted-foreground">API Service ID *</label>
-  <Input
-    value={form.api_service_id}
-    onChange={(e) => setForm((f) => ({ ...f, api_service_id: e.target.value }))}
-    placeholder="e.g. 123"
-    className="bg-background/50"
-  />
-</div>
+        <div className="space-y-1 col-span-2">
+          <label className="text-xs font-medium text-muted-foreground">API Service ID *</label>
+          <Input
+            value={form.apiServiceId}
+            onChange={(e) => setForm((f) => ({ ...f, apiServiceId: e.target.value }))}
+            placeholder="e.g. 123"
+            className="bg-background/50"
+          />
+          <p className="text-xs text-muted-foreground">The service ID used by your external SMM provider.</p>
+        </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Platform *</label>
           <Select value={form.platform} onValueChange={(v) => setForm(f => ({ ...f, platform: v }))}>
@@ -530,7 +530,7 @@ function ServicesTab() {
           <Table>
             <TableHeader>
               <TableRow className="border-border">
-                <TableHead>Name</TableHead><TableHead>Platform</TableHead><TableHead>Category</TableHead>
+                <TableHead>API ID</TableHead><TableHead>Name</TableHead><TableHead>Platform</TableHead><TableHead>Category</TableHead>
                 <TableHead>Price/1000</TableHead><TableHead>Min</TableHead><TableHead>Max</TableHead>
                 <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -539,12 +539,11 @@ function ServicesTab() {
               {isLoading ? (
                 <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
               ) : services?.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No services yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No services yet.</TableCell></TableRow>
               ) : services?.map((s) => (
                 <TableRow key={s.id} className="border-border">
-`<TableCell className="font-medium max-w-[160px] truncate">
-  {`${s.id} - ${s.name}`}
-</TableCell>
+                  <TableCell className="font-mono text-xs text-primary">{(s as any).apiServiceId || (s as any).api_service_id || "—"}</TableCell>
+                  <TableCell className="font-medium max-w-[160px] truncate">{`${s.id} - ${s.name}`}</TableCell>
                   
                   
                   <TableCell className="text-sm">{s.platform}</TableCell>
