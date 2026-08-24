@@ -55,7 +55,7 @@ const apiRequest = async (path: string, init?: RequestInit) => {
   return response.json();
 };
 
-type Tab = "dashboard" | "users" | "orders" | "topups" | "services" | "api" | "settings" | "broadcast";
+type Tab = "dashboard" | "users" | "orders" | "topups" | "services" | "api" | "pricing" | "settings" | "broadcast";
 
 function formatDate(d: string | Date) {
   return new Date(d).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
@@ -496,6 +496,14 @@ function ServicesTab() {
     }
   }
 
+  async function handleStatus(id: number, isActive: boolean) {
+    try {
+      await apiRequest(`/api/admin/services/${id}/status`, { method: "PATCH", body: JSON.stringify({ isActive }) });
+      await qc.invalidateQueries({ queryKey: getListAdminServicesQueryKey() });
+      toast({ title: isActive ? "Service activated" : "Service deactivated" });
+    } catch (error: any) { toast({ title: "Failed to update service status", description: error.message, variant: "destructive" }); }
+  }
+
   const ServiceForm = () => (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
@@ -603,6 +611,9 @@ function ServicesTab() {
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">
                       <Button size="sm" variant="ghost" onClick={() => openEdit(s)}><Edit2 className="w-3 h-3 mr-1" /> Edit</Button>
+                      <Button size="sm" variant="ghost" className={s.isActive ? "text-red-400" : "text-green-400"} onClick={() => handleStatus(s.id, !s.isActive)}>
+                        {s.isActive ? "Disable" : "Activate"}
+                      </Button>
                       {s.isActive && (
                         <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={() => handleDelete(s.id)}>
                           <Trash2 className="w-3 h-3 mr-1" /> Disable
@@ -620,6 +631,32 @@ function ServicesTab() {
   );
 }
 
+function PricingTab() {
+  const { toast } = useToast();
+  const [percent, setPercent] = useState("1");
+  const [mode, setMode] = useState<"increase" | "discount">("increase");
+  const [saving, setSaving] = useState(false);
+  async function apply() {
+    const value = Number(percent);
+    if (!Number.isFinite(value) || value < 0 || value > 100) return;
+    setSaving(true);
+    try {
+      const result = await apiRequest("/api/admin/services/price-adjustment", { method: "POST", body: JSON.stringify({ percent: value, mode }) });
+      toast({ title: `${result.updated} service prices updated` });
+    } catch (error: any) { toast({ title: "Price update failed", description: error.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  }
+  return <div className="space-y-6 max-w-xl">
+    <div><h2 className="text-2xl font-bold">Increase & Discount</h2><p className="text-sm text-muted-foreground mt-1">Apply one percentage to all services at once.</p></div>
+    <Card className="bg-card/50 border-white/5"><CardHeader><CardTitle className="text-base">All Services Price Adjustment</CardTitle></CardHeader><CardContent className="space-y-4">
+      <Select value={mode} onValueChange={(value: "increase" | "discount") => setMode(value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="increase">Increase price</SelectItem><SelectItem value="discount">Discount price</SelectItem></SelectContent></Select>
+      <div className="flex items-center gap-2"><Input type="number" min="0" max="100" value={percent} onChange={(e) => setPercent(e.target.value)} placeholder="1" /><span className="text-sm font-medium">%</span></div>
+      <p className="text-xs text-muted-foreground">Example: 1% increase makes ₹100 become ₹101. This applies to current prices.</p>
+      <Button onClick={apply} disabled={saving} className="w-full bg-gradient-to-r from-primary to-accent text-white">{saving ? "Updating..." : "Apply to All Services"}</Button>
+    </CardContent></Card>
+  </div>;
+}
+
 // ─── Tab: API ────────────────────────────────────────────────────────────────
 
 function ApiTab() {
@@ -632,7 +669,7 @@ function ApiTab() {
   const [isEnabled, setIsEnabled] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [providers, setProviders] = useState<any[]>([]);
-  const [providerForm, setProviderForm] = useState({ name: "", apiUrl: "", apiKey: "", isEnabled: true });
+  const [providerForm, setProviderForm] = useState({ name: "", apiUrl: "", apiKey: "", isEnabled: true, markupPercent: "1" });
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
 
@@ -660,10 +697,10 @@ function ApiTab() {
     }
     try {
       const saved = await apiRequest(editingProvider ? `/api/admin/api-providers/${editingProvider}` : "/api/admin/api-providers", {
-        method: editingProvider ? "PATCH" : "POST", body: JSON.stringify(providerForm),
+        method: editingProvider ? "PATCH" : "POST", body: JSON.stringify({ ...providerForm, markupPercent: Number(providerForm.markupPercent) || 0 }),
       });
       setProviders((items) => editingProvider ? items.map((item) => item.id === editingProvider ? saved : item) : [...items, saved]);
-      setProviderForm({ name: "", apiUrl: "", apiKey: "", isEnabled: true }); setEditingProvider(null);
+      setProviderForm({ name: "", apiUrl: "", apiKey: "", isEnabled: true, markupPercent: "1" }); setEditingProvider(null);
       toast({ title: editingProvider ? "Provider updated" : "Provider added" });
     } catch (error: any) { toast({ title: "Could not save provider", description: error.message, variant: "destructive" }); }
   }
@@ -671,7 +708,8 @@ function ApiTab() {
   async function syncProvider(id: string) {
     setSyncing(id);
     try {
-      const result = await apiRequest(`/api/admin/api-providers/${id}/sync`, { method: "POST" });
+      const provider = providers.find((item) => item.id === id);
+      const result = await apiRequest(`/api/admin/api-providers/${id}/sync`, { method: "POST", body: JSON.stringify({ markupPercent: Number(provider?.markupPercent ?? 0) }) });
       await qc.invalidateQueries({ queryKey: getListAdminServicesQueryKey() });
       toast({ title: `${result.imported} services imported`, description: "You can edit them in the Services tab." });
     } catch (error: any) { toast({ title: "Service sync failed", description: error.message, variant: "destructive" }); }
@@ -725,19 +763,21 @@ function ApiTab() {
             <Input placeholder="Provider name (e.g. Provider 1)" value={providerForm.name} onChange={(e) => setProviderForm((f) => ({ ...f, name: e.target.value }))} />
             <Input placeholder="https://provider.com/api/v2" value={providerForm.apiUrl} onChange={(e) => setProviderForm((f) => ({ ...f, apiUrl: e.target.value }))} />
             <Input type="password" placeholder={editingProvider ? "Leave blank to keep current key" : "API key"} value={providerForm.apiKey} onChange={(e) => setProviderForm((f) => ({ ...f, apiKey: e.target.value }))} />
+            <div className="flex items-center gap-2"><Input type="number" min="0" max="1000" value={providerForm.markupPercent} onChange={(e) => setProviderForm((f) => ({ ...f, markupPercent: e.target.value }))} placeholder="1" /><span className="text-xs whitespace-nowrap">% increase</span></div>
             <div className="flex items-center gap-2 px-2"><Switch checked={providerForm.isEnabled} onCheckedChange={(v) => setProviderForm((f) => ({ ...f, isEnabled: v }))} /><span className="text-sm">Enabled</span></div>
           </div>
           <div className="flex gap-2">
             <Button onClick={saveProvider} className="bg-gradient-to-r from-primary to-accent text-white">{editingProvider ? "Save Provider" : "Add Provider"}</Button>
-            {editingProvider && <Button variant="outline" onClick={() => { setEditingProvider(null); setProviderForm({ name: "", apiUrl: "", apiKey: "", isEnabled: true }); }}>Cancel</Button>}
+            {editingProvider && <Button variant="outline" onClick={() => { setEditingProvider(null); setProviderForm({ name: "", apiUrl: "", apiKey: "", isEnabled: true, markupPercent: "1" }); }}>Cancel</Button>}
           </div>
           <div className="space-y-2">
-            {providers.length === 0 ? <p className="text-sm text-muted-foreground">No additional providers added yet.</p> : providers.map((provider) => (
+              {providers.length === 0 ? <p className="text-sm text-muted-foreground">No additional providers added yet.</p> : providers.map((provider) => (
               <div key={provider.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-background/40 p-3">
                 <div className="min-w-0 flex-1"><p className="font-medium">{provider.name}</p><p className="text-xs text-muted-foreground truncate">{provider.apiUrl}</p></div>
                 <Badge variant="outline" className={provider.isEnabled ? "text-green-400" : "text-muted-foreground"}>{provider.isEnabled ? "Enabled" : "Disabled"}</Badge>
                 <Button size="sm" onClick={() => syncProvider(provider.id)} disabled={syncing === provider.id}>{syncing === provider.id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />} Import Services</Button>
-                <Button size="sm" variant="ghost" onClick={() => { setEditingProvider(provider.id); setProviderForm({ name: provider.name, apiUrl: provider.apiUrl, apiKey: "", isEnabled: provider.isEnabled }); }}>Edit</Button>
+                <span className="text-xs text-muted-foreground">+{provider.markupPercent ?? 0}%</span>
+                <Button size="sm" variant="ghost" onClick={() => { setEditingProvider(provider.id); setProviderForm({ name: provider.name, apiUrl: provider.apiUrl, apiKey: "", isEnabled: provider.isEnabled, markupPercent: String(provider.markupPercent ?? 0) }); }}>Edit</Button>
                 <Button size="sm" variant="ghost" className="text-red-400" onClick={() => removeProvider(provider.id)}><Trash2 className="w-3 h-3" /></Button>
               </div>
             ))}
@@ -1138,6 +1178,7 @@ export default function Admin() {
     { key: "topups", label: "Top-ups", icon: Wallet },
     { key: "services", label: "Services", icon: ToggleLeft },
     { key: "api", label: "API Connect", icon: Link },
+    { key: "pricing", label: "Increase & Discount", icon: Settings },
     { key: "settings", label: "Payment Settings", icon: Settings },
     { key: "broadcast", label: "Broadcasting", icon: Radio },
   ];
@@ -1188,6 +1229,7 @@ export default function Admin() {
           {tab === "topups" && <TopupsTab />}
           {tab === "services" && <ServicesTab />}
           {tab === "api" && <ApiTab />}
+          {tab === "pricing" && <PricingTab />}
           {tab === "settings" && <SettingsTab />}
           {tab === "broadcast" && <BroadcastTab adminEmail={user.email!} />}
         </div>

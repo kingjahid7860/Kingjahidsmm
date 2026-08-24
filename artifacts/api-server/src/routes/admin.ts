@@ -340,11 +340,11 @@ router.get("/admin/api-providers", requireAdmin, async (req, res) => {
 
 router.post("/admin/api-providers", requireAdmin, async (req, res) => {
   try {
-    const { name, apiUrl, apiKey, isEnabled = true } = req.body ?? {};
+    const { name, apiUrl, apiKey, isEnabled = true, markupPercent = 0 } = req.body ?? {};
     if (!String(name ?? "").trim() || !String(apiUrl ?? "").trim() || !String(apiKey ?? "").trim()) {
       return res.status(400).json({ error: "Provider name, API URL and API key are required" });
     }
-    const provider = await createApiProvider({ name: String(name).trim(), apiUrl: String(apiUrl).trim(), apiKey: String(apiKey), isEnabled: Boolean(isEnabled) });
+    const provider = await createApiProvider({ name: String(name).trim(), apiUrl: String(apiUrl).trim(), apiKey: String(apiKey), isEnabled: Boolean(isEnabled), markupPercent: Math.max(0, Number(markupPercent) || 0) });
     res.status(201).json({ ...provider, apiKey: undefined });
   } catch (err) {
     req.log.error(err, "Failed to create API provider");
@@ -364,6 +364,7 @@ router.patch("/admin/api-providers/:id", requireAdmin, async (req, res) => {
       apiUrl: patch.apiUrl === undefined ? current.apiUrl : String(patch.apiUrl).trim(),
       apiKey: patch.apiKey ? String(patch.apiKey) : current.apiKey,
       isEnabled: patch.isEnabled === undefined ? current.isEnabled : Boolean(patch.isEnabled),
+      markupPercent: patch.markupPercent === undefined ? current.markupPercent : Math.max(0, Number(patch.markupPercent) || 0),
     });
     const { apiKey, ...safe } = provider;
     res.json({ ...safe, hasApiKey: Boolean(apiKey) });
@@ -411,11 +412,12 @@ router.post("/admin/api-providers/:id/sync", requireAdmin, async (req, res) => {
       const name = String(row.name ?? `Service ${apiServiceId}`).trim();
       if (!apiServiceId || !name) continue;
       const rate = Number(row.rate ?? row.price ?? 0);
+      const markupPercent = Math.max(0, Number(req.body?.markupPercent ?? provider.markupPercent) || 0);
       const minQuantity = Number(row.min ?? row.min_quantity ?? 1);
       const maxQuantity = Number(row.max ?? row.max_quantity ?? 1000000);
       const category = String(row.category ?? row.type ?? "Imported");
       const platform = String(row.platform ?? category);
-      const values = { providerId: provider.id, apiServiceId, name, category, platform, description: String(row.description ?? name), pricePerThousand: Number.isFinite(rate) ? rate : 0, minQuantity: Number.isFinite(minQuantity) ? minQuantity : 1, maxQuantity: Number.isFinite(maxQuantity) ? maxQuantity : 1000000, isActive: true };
+      const values = { providerId: provider.id, apiServiceId, name, category, platform, description: String(row.description ?? name), pricePerThousand: Number.isFinite(rate) ? rate * (1 + markupPercent / 100) : 0, minQuantity: Number.isFinite(minQuantity) ? minQuantity : 1, maxQuantity: Number.isFinite(maxQuantity) ? maxQuantity : 1000000, isActive: false };
       const match = byProviderId.get(apiServiceId);
       if (match) await updateService(match.id, values);
       else await createService(values);
@@ -425,6 +427,24 @@ router.post("/admin/api-providers/:id/sync", requireAdmin, async (req, res) => {
   } catch (err) {
     req.log.error(err, "Failed to sync API provider services");
     res.status(502).json({ error: "Could not fetch services from this provider" });
+  }
+  return;
+});
+
+router.get("/admin/api-providers/:id/catalog", requireAdmin, async (req, res) => {
+  try {
+    const provider = await getApiProviderById(String(req.params.id));
+    if (!provider) return res.status(404).json({ error: "Provider not found" });
+    const response = await fetch(provider.apiUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json, text/plain, */*" }, body: new URLSearchParams({ key: provider.apiKey, action: "services" }).toString(), signal: AbortSignal.timeout(20000) });
+    const raw = await response.text();
+    let payload: any;
+    try { payload = JSON.parse(raw); } catch { payload = null; }
+    const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.services) ? payload.services : [];
+    if (!response.ok || !rows.length) return res.status(502).json({ error: "Provider returned no services" });
+    res.json(rows);
+  } catch (err) {
+    req.log.error(err, "Failed to load provider catalog");
+    res.status(502).json({ error: "Could not load provider services" });
   }
   return;
 });
@@ -519,6 +539,35 @@ router.patch("/admin/services/:id", requireAdmin, async (req, res) => {
     res.json({ ...service, pricePerThousand: Number(service.pricePerThousand) });
   } catch (err) {
     req.log.error(err, "Failed to update service");
+    res.status(500).json({ error: "Internal server error" });
+  }
+  return;
+});
+
+router.patch("/admin/services/:id/status", requireAdmin, async (req, res) => {
+  try {
+    const service = await getServiceById(String(req.params.id));
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    const updated = await updateService(service.id, { isActive: req.body?.isActive === true });
+    res.json({ ...updated, pricePerThousand: Number(updated.pricePerThousand) });
+  } catch (err) {
+    req.log.error(err, "Failed to update service status");
+    res.status(500).json({ error: "Internal server error" });
+  }
+  return;
+});
+
+router.post("/admin/services/price-adjustment", requireAdmin, async (req, res) => {
+  try {
+    const percent = Number(req.body?.percent);
+    const mode = req.body?.mode === "discount" ? "discount" : "increase";
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) return res.status(400).json({ error: "Percentage must be between 0 and 100" });
+    const services = await getAllServices();
+    const factor = mode === "discount" ? 1 - percent / 100 : 1 + percent / 100;
+    await Promise.all(services.map((service) => updateService(service.id, { pricePerThousand: Number((service.pricePerThousand * factor).toFixed(6)) })));
+    res.json({ updated: services.length, mode, percent });
+  } catch (err) {
+    req.log.error(err, "Failed to adjust service prices");
     res.status(500).json({ error: "Internal server error" });
   }
   return;

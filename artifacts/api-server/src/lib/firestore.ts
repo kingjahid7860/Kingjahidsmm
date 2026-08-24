@@ -87,6 +87,7 @@ export interface ApiProvider {
   apiUrl: string;
   apiKey: string;
   isEnabled: boolean;
+  markupPercent: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,6 +100,10 @@ export interface Order {
   quantity: number;
   charge: number;
   status: string;
+  externalOrderId?: string | null;
+  deliveredQuantity?: number | null;
+  refundedAmount?: number;
+  lastSyncedAt?: Date | null;
   createdAt: Date;
 }
 
@@ -200,6 +205,10 @@ export function orderFromChild(id: string, data: Record<string, unknown>): Order
     quantity: toNumber(data.quantity),
     charge: toNumber(data.charge),
     status: (data.status as string) ?? "Pending",
+    externalOrderId: data.externalOrderId == null ? null : String(data.externalOrderId),
+    deliveredQuantity: data.deliveredQuantity == null ? null : toNumber(data.deliveredQuantity),
+    refundedAmount: toNumber(data.refundedAmount),
+    lastSyncedAt: data.lastSyncedAt == null ? null : dateFromDb(data.lastSyncedAt),
     createdAt: dateFromDb(data.createdAt),
   };
 }
@@ -212,6 +221,10 @@ export function orderToDoc(data: Partial<Order>): Record<string, unknown> {
   if (data.quantity !== undefined) docData.quantity = data.quantity;
   if (data.charge !== undefined) docData.charge = data.charge;
   if (data.status !== undefined) docData.status = data.status;
+  if (data.externalOrderId !== undefined) docData.externalOrderId = data.externalOrderId;
+  if (data.deliveredQuantity !== undefined) docData.deliveredQuantity = data.deliveredQuantity;
+  if (data.refundedAmount !== undefined) docData.refundedAmount = data.refundedAmount;
+  if (data.lastSyncedAt !== undefined) docData.lastSyncedAt = data.lastSyncedAt == null ? null : toDbDate(data.lastSyncedAt);
   if (data.createdAt !== undefined) docData.createdAt = toDbDate(data.createdAt);
   return docData;
 }
@@ -339,6 +352,7 @@ function providerFromChild(id: string, data: Record<string, unknown>): ApiProvid
     apiUrl: String(data.apiUrl ?? ""),
     apiKey: String(data.apiKey ?? ""),
     isEnabled: data.isEnabled !== false,
+    markupPercent: toNumber(data.markupPercent),
     createdAt: dateFromDb(data.createdAt),
     updatedAt: dateFromDb(data.updatedAt),
   };
@@ -350,6 +364,7 @@ function providerToDoc(data: Partial<ApiProvider>): Record<string, unknown> {
   if (data.apiUrl !== undefined) doc.apiUrl = data.apiUrl;
   if (data.apiKey !== undefined) doc.apiKey = data.apiKey;
   if (data.isEnabled !== undefined) doc.isEnabled = data.isEnabled;
+  if (data.markupPercent !== undefined) doc.markupPercent = data.markupPercent;
   if (data.createdAt !== undefined) doc.createdAt = toDbDate(data.createdAt);
   if (data.updatedAt !== undefined) doc.updatedAt = toDbDate(data.updatedAt);
   return doc;

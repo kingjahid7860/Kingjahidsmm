@@ -9,6 +9,9 @@ import {
   getSetting,
   getUserById,
   getApiProviderById,
+  getAllOrders,
+  updateOrder,
+  getWalletByUserId,
 } from "../lib/firestore";
 import { CreateOrderBody } from "@workspace/api-zod";
 
@@ -103,6 +106,7 @@ router.post("/orders", async (req, res) => {
     // Most SMM APIs use the common action/key/service/link/quantity contract.
     const provider = service.providerId ? await getApiProviderById(service.providerId) : null;
     const apiEnabled = provider ? provider.isEnabled : (await getSetting("smm_api_enabled")) === "true";
+    let externalOrderId: string | null = null;
     if (apiEnabled) {
       const apiUrl = (provider?.apiUrl ?? await getSetting("smm_api_url")).trim();
       const apiKey = provider?.apiKey ?? await getSetting("smm_api_key");
@@ -161,6 +165,7 @@ router.post("/orders", async (req, res) => {
           error: `External SMM API rejected the order: ${String(providerError ?? rawProviderBody).slice(0, 240)}`,
         });
       }
+      externalOrderId = providerData?.order == null ? null : String(providerData.order);
     }
 
     await updateWallet(req.user!.id, {
@@ -176,6 +181,7 @@ router.post("/orders", async (req, res) => {
       quantity,
       charge,
       status: apiEnabled ? "Processing" : "Pending",
+      externalOrderId,
     });
 
     res.status(201).json({
@@ -195,6 +201,41 @@ router.post("/orders", async (req, res) => {
   }
   return;
 });
+
+export async function syncExternalOrders() {
+  const orders = (await getAllOrders()).filter((order) => order.status === "Processing" && order.externalOrderId);
+  for (const order of orders) {
+    try {
+      const service = await getServiceById(order.serviceId);
+      const provider = service?.providerId ? await getApiProviderById(service.providerId) : null;
+      if (!service || !provider) continue;
+      const response = await fetch(provider.apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+        body: new URLSearchParams({ key: provider.apiKey, action: "status", order: String(order.externalOrderId) }).toString(),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) continue;
+      const data = await response.json() as Record<string, unknown>;
+      const providerStatus = String(data.status ?? "").toLowerCase();
+      if (!providerStatus) continue;
+      const remains = Number(data.remains);
+      const delivered = Number.isFinite(remains) ? Math.max(0, Math.min(order.quantity, order.quantity - remains)) : providerStatus === "completed" ? order.quantity : (order.deliveredQuantity ?? 0);
+      const terminal = ["completed", "partial", "canceled", "cancelled"].includes(providerStatus);
+      const status = providerStatus === "completed" ? "Completed" : providerStatus === "partial" ? "Partial" : ["canceled", "cancelled"].includes(providerStatus) ? "Cancelled" : "Processing";
+      const expectedRefund = terminal ? Math.max(0, order.charge - (order.charge * delivered) / Math.max(1, order.quantity)) : 0;
+      const alreadyRefunded = Number(order.refundedAmount ?? 0);
+      const refundDelta = Math.max(0, Number((expectedRefund - alreadyRefunded).toFixed(6)));
+      if (refundDelta > 0) {
+        const wallet = await getWalletByUserId(order.userId);
+        if (wallet) await updateWallet(order.userId, { balance: Number(wallet.balance) + refundDelta, totalSpent: Math.max(0, Number(wallet.totalSpent) - refundDelta), updatedAt: new Date() });
+      }
+      await updateOrder(order.id, { status, deliveredQuantity: delivered, refundedAmount: alreadyRefunded + refundDelta, lastSyncedAt: new Date() });
+    } catch {
+      // A temporary provider failure should not change status or issue a refund.
+    }
+  }
+}
 
 router.get("/orders/:id", async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: "Unauthorized" });
