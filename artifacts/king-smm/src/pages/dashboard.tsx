@@ -5,6 +5,8 @@ import { Wallet, ShoppingCart, CheckCircle, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 import { ref, onValue } from "firebase/database";
 import { rtdb, type FeedItem } from "@/lib/firebase";
 
@@ -183,8 +185,15 @@ export default function Dashboard() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back. Here is your overview.</p>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground mt-1">Welcome back. Here is your overview.</p>
+          </div>
+          <Button asChild size="lg" className="bg-gradient-to-r from-primary to-accent text-white">
+            <Link href="/new-order">New Order <ShoppingCart className="ml-2 h-4 w-4" /></Link>
+          </Button>
+        </div>
       </div>
 
       {/* TOP: Video player — only shown when there's a videoUrl in the feed */}

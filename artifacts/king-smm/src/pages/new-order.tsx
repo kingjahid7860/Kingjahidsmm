@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
+import { useFirebaseAuth } from "@/hooks/use-firebase-auth";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +22,7 @@ const formSchema = z.object({
 export default function NewOrder() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { isAuthenticated } = useFirebaseAuth();
   const searchParams = new URLSearchParams(window.location.search);
   const initialServiceId = searchParams.get("service");
 
@@ -59,6 +61,10 @@ export default function NewOrder() {
   }, [selectedServiceId]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!isAuthenticated) {
+      setLocation(`/login?redirect=${encodeURIComponent(`/new-order?service=${values.serviceId}`)}`);
+      return;
+    }
     createOrder.mutate({ data: values }, {
       onSuccess: () => {
         toast({ title: "Order placed successfully!", variant: "default" });

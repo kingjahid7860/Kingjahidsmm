@@ -396,6 +396,9 @@ export async function updateApiProvider(id: string, data: Partial<ApiProvider>):
 }
 
 export async function deleteApiProvider(id: string): Promise<void> {
+  const services = await getAllServices();
+  const importedServices = services.filter((service) => service.providerId === id);
+  await Promise.all(importedServices.map((service) => remove(ref(rtdb, `services/${service.id}`))));
   await remove(ref(rtdb, `apiProviders/${id}`));
 }
 

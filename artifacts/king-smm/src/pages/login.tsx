@@ -18,17 +18,20 @@ function GoogleIcon() {
 
 type Mode = "login" | "signup";
 
-export default function Login() {
+export default function Login({ initialMode = "login" }: { initialMode?: Mode }) {
   const { isAuthenticated, isLoading, signInWithEmail, signUpWithEmail, signInWithGoogle } = useFirebaseAuth();
   const [, setLocation] = useLocation();
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   React.useEffect(() => {
-    if (isAuthenticated) setLocation("/dashboard");
+    if (isAuthenticated) {
+      const redirect = new URLSearchParams(window.location.search).get("redirect");
+      setLocation(redirect || "/dashboard");
+    }
   }, [isAuthenticated, setLocation]);
 
   if (isLoading) return null;

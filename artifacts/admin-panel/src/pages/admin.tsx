@@ -39,6 +39,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Users, ShoppingCart, Wallet, Clock, Settings, ChevronLeft, ChevronRight,
   Shield, Edit2, Check, X, Plus, Trash2, Link, Key, ToggleLeft, Radio,
@@ -436,6 +437,8 @@ function ServicesTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...emptyService });
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   function openAdd() { setForm({ ...emptyService }); setShowAdd(true); }
   function openEdit(s: NonNullable<typeof services>[0]) {
@@ -504,6 +507,24 @@ function ServicesTab() {
     } catch (error: any) { toast({ title: "Failed to update service status", description: error.message, variant: "destructive" }); }
   }
 
+  function toggleDeleteMode() {
+    setIsDeleteMode((current) => !current);
+    setSelectedIds([]);
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.length === 0) return;
+    try {
+      await Promise.all(selectedIds.map((id) => deleteService({ id })));
+      await qc.invalidateQueries({ queryKey: getListAdminServicesQueryKey() });
+      toast({ title: `${selectedIds.length} active service${selectedIds.length === 1 ? "" : "s"} disabled` });
+      setSelectedIds([]);
+      setIsDeleteMode(false);
+    } catch {
+      toast({ title: "Failed to disable selected services", variant: "destructive" });
+    }
+  }
+
   const ServiceForm = () => (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
@@ -559,17 +580,36 @@ function ServicesTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold">Services ({services?.length ?? 0})</h2>
-        <Dialog open={showAdd} onOpenChange={setShowAdd}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-primary to-accent text-white" onClick={openAdd}>
-              <Plus className="w-4 h-4 mr-1" /> Add Service
+        <div className="flex items-center gap-2">
+          {isDeleteMode && (
+            <Button
+              variant="destructive"
+              disabled={selectedIds.length === 0}
+              onClick={handleBulkDelete}
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Delete Selected ({selectedIds.length})
             </Button>
-          </DialogTrigger>
+          )}
+          <Button
+            variant="outline"
+            className="border-red-500 text-red-500 hover:bg-red-500/10"
+            onClick={toggleDeleteMode}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            {isDeleteMode ? "Cancel" : "Delete Services"}
+          </Button>
+          <Dialog open={showAdd} onOpenChange={setShowAdd}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-primary to-accent text-white" onClick={openAdd}>
+                <Plus className="w-4 h-4 mr-1" /> Add Service
+              </Button>
+            </DialogTrigger>
           <DialogContent className="bg-card border-white/10 max-w-md">
             <DialogHeader><DialogTitle>Add New Service</DialogTitle></DialogHeader>
             <ServiceForm />
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
       <Dialog open={editId !== null} onOpenChange={(open) => { if (!open) setEditId(null); }}>
         <DialogContent className="bg-card border-white/10 max-w-md">
@@ -582,6 +622,19 @@ function ServicesTab() {
           <Table>
             <TableHeader>
               <TableRow className="border-border">
+                {isDeleteMode && (
+                  <TableHead className="w-[50px]">
+                    <Checkbox
+                      checked={(services?.filter((s) => s.isActive).length ?? 0) > 0 &&
+                        selectedIds.length === (services?.filter((s) => s.isActive).length ?? 0)}
+                      onCheckedChange={(checked) => {
+                        const activeIds = (services ?? []).filter((s) => s.isActive).map((s) => s.id);
+                        setSelectedIds(checked === true ? activeIds : []);
+                      }}
+                      aria-label="Select all active services"
+                    />
+                  </TableHead>
+                )}
                 <TableHead>API ID</TableHead><TableHead>Name</TableHead><TableHead>Platform</TableHead><TableHead>Category</TableHead>
                 <TableHead>Price/1000</TableHead><TableHead>Min</TableHead><TableHead>Max</TableHead>
                 <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
@@ -589,11 +642,27 @@ function ServicesTab() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isDeleteMode ? 10 : 9} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
               ) : services?.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No services yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isDeleteMode ? 10 : 9} className="text-center py-8 text-muted-foreground">No services yet.</TableCell></TableRow>
               ) : services?.map((s) => (
                 <TableRow key={s.id} className="border-border">
+                  {isDeleteMode && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.includes(s.id)}
+                        disabled={!s.isActive}
+                        onCheckedChange={(checked) => {
+                          setSelectedIds((current) =>
+                            checked === true
+                              ? Array.from(new Set([...current, s.id]))
+                              : current.filter((id) => id !== s.id),
+                          );
+                        }}
+                        aria-label={`Select ${s.name}`}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="font-mono text-xs text-primary">{(s as any).apiServiceId || (s as any).api_service_id || "—"}</TableCell>
                   <TableCell className="font-medium max-w-[160px] truncate">{`${s.id} - ${s.name}`}</TableCell>
                   
@@ -717,7 +786,12 @@ function ApiTab() {
   }
 
   async function removeProvider(id: string) {
-    try { await apiRequest(`/api/admin/api-providers/${id}`, { method: "DELETE" }); setProviders((items) => items.filter((item) => item.id !== id)); toast({ title: "Provider removed" }); }
+    try {
+      await apiRequest(`/api/admin/api-providers/${id}`, { method: "DELETE" });
+      setProviders((items) => items.filter((item) => item.id !== id));
+      await qc.invalidateQueries({ queryKey: getListAdminServicesQueryKey() });
+      toast({ title: "Provider and imported services removed" });
+    }
     catch (error: any) { toast({ title: "Could not remove provider", description: error.message, variant: "destructive" }); }
   }
 

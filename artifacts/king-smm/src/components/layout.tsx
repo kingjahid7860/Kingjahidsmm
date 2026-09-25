@@ -4,6 +4,7 @@ import { useFirebaseAuth } from "@/hooks/use-firebase-auth";
 import { Home, List, PlusCircle, History, Wallet, User, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -67,39 +68,43 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="w-8 h-8 rounded bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white">K</div>
           <span className="font-bold text-lg tracking-tight">kingsmmpanel</span>
         </div>
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon"><Menu className="w-6 h-6" /></Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0 bg-card border-r-border">
-            <div className="flex flex-col h-full">
-              <div className="p-6 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white">K</div>
-                  <span className="font-bold text-lg tracking-tight">kingsmmpanel</span>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon"><Menu className="w-6 h-6" /></Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64 p-0 bg-card border-r-border">
+              <div className="flex flex-col h-full">
+                <div className="p-6 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white">K</div>
+                    <span className="font-bold text-lg tracking-tight">kingsmmpanel</span>
+                  </div>
+                </div>
+                <nav className="flex-1 p-4 space-y-1 overflow-y-auto"><NavLinks /></nav>
+                <div className="p-4 border-t border-border">
+                  <div className="flex items-center gap-3 mb-4 px-2 text-sm">
+                    <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center font-bold text-primary">{initial}</div>
+                    <span className="truncate">{displayName}</span>
+                  </div>
+                  <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={logout}>
+                    <LogOut className="w-4 h-4 mr-2" /> Logout
+                  </Button>
                 </div>
               </div>
-              <nav className="flex-1 p-4 space-y-1 overflow-y-auto"><NavLinks /></nav>
-              <div className="p-4 border-t border-border">
-                <div className="flex items-center gap-3 mb-4 px-2 text-sm">
-                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center font-bold text-primary">{initial}</div>
-                  <span className="truncate">{displayName}</span>
-                </div>
-                <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={logout}>
-                  <LogOut className="w-4 h-4 mr-2" /> Logout
-                </Button>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
+            </SheetContent>
+          </Sheet>
+        </div>
       </header>
 
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border h-screen sticky top-0">
         <div className="p-6 border-b border-border">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2">
             <div className="w-8 h-8 rounded bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]">K</div>
             <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">kingsmmpanel</span>
+            <ThemeToggle />
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto"><NavLinks /></nav>

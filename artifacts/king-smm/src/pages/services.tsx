@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 
-export default function Services() {
+export default function Services({ compact = false }: { compact?: boolean }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
   
@@ -26,10 +26,10 @@ export default function Services() {
 
   return (
     <div className="space-y-6">
-      <div>
+      {!compact && <div>
         <h1 className="text-3xl font-bold tracking-tight">Services</h1>
         <p className="text-muted-foreground mt-1">Browse our complete catalog of growth services.</p>
-      </div>
+      </div>}
 
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -41,20 +41,6 @@ export default function Services() {
             onChange={(e) => setSearch(e.target.value)}
           />
          </div>
-        <Select onValueChange={(value) => setSearch(value)}>
-  <SelectTrigger className="w-full sm:w-[200px] bg-card/50 border-white/10">
-    <SelectValue placeholder="Search Services..." />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="all">All Services</SelectItem>
-    {services?.map((service) => (
-      <SelectItem key={service.id} value={service.name}>
-        {service.name}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
-        
         <Select value={category} onValueChange={setCategory}>
           <SelectTrigger className="w-full sm:w-[200px] bg-card/50 border-white/10">
             <SelectValue placeholder="All Categories" />
